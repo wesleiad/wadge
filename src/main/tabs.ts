@@ -4,7 +4,6 @@ import { resetBlocked } from './adblock'
 import type { TabInfo, TabsState } from '../shared/types'
 
 export const CHROME_HEIGHT = 114 // abas 40 + barra 44 + favoritos 30
-export const VAULT_WIDTH = 380
 
 interface Tab {
   id: number
@@ -37,6 +36,7 @@ export class TabManager {
   private nextId = 1
   private vaultView: WebContentsView | null = null
   vaultOpen = false
+  private vaultUrl = ''
   private changeListeners: Array<() => void> = []
 
   constructor(
@@ -44,12 +44,12 @@ export class TabManager {
     private ext: ExtHooks
   ) {
     win.on('resize', () => this.layout())
-    onSettingsChange(() => {
-      // URL do cofre mudou: recria o painel na próxima abertura
-      if (this.vaultView) {
-        this.closeVaultView()
-        if (this.vaultOpen) this.toggleVault()
-      }
+    this.vaultUrl = getSettings().vaultUrl
+    onSettingsChange((st) => {
+      // só reage se a URL do cofre mudou (não em tema/adblock etc.)
+      if (st.vaultUrl === this.vaultUrl) return
+      this.vaultUrl = st.vaultUrl
+      if (this.vaultView) this.loadVault()
     })
   }
 
@@ -295,6 +295,27 @@ export class TabManager {
     this.vaultView = null
   }
 
+  private vaultPage(title: string, msg: string, retry = false): string {
+    const html =
+      '<meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
+      ':root{color-scheme:light dark}body{font:14px Segoe UI,sans-serif;margin:0;padding:20px;' +
+      'background:Canvas;color:CanvasText;word-wrap:break-word}h3{margin:0 0 10px}' +
+      'a{color:#5865f2}code{opacity:.8}</style><body><h3>' + title + '</h3><p>' + msg + '</p>' +
+      (retry ? '<p><a href="' + this.vaultUrl + '">Tentar novamente</a></p>' : '') + '</body>'
+    return 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
+  }
+
+  private loadVault(): void {
+    const wc = this.vaultView?.webContents
+    if (!wc) return
+    if (!this.vaultUrl) {
+      void wc.loadURL(this.vaultPage('Vault',
+        'Configure a URL do cofre (Vaultwarden/Bitwarden) em <b>Menu ⋮ → Configurações</b>.'))
+      return
+    }
+    void wc.loadURL(normalizeInput(this.vaultUrl)).catch(() => undefined)
+  }
+
   toggleVault(): void {
     this.vaultOpen = !this.vaultOpen
     if (this.vaultOpen) {
@@ -305,18 +326,14 @@ export class TabManager {
           this.createTab(url, true)
           return { action: 'deny' }
         })
+        wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
+          if (!isMain || code === -3 || url.startsWith('data:')) return
+          void wc.loadURL(this.vaultPage('Não foi possível abrir o cofre',
+            `Endereço: <code>${this.vaultUrl}</code><br>Erro: ${desc} (${code}).<br>` +
+            'Verifique a rede/VPN e a URL em Configurações.', true))
+        })
         this.ext.addTab(wc)
-        const url = getSettings().vaultUrl
-        if (url) wc.loadURL(normalizeInput(url)).catch(() => undefined)
-        else
-          wc.loadURL(
-            'data:text/html;charset=utf-8,' +
-              encodeURIComponent(
-                '<body style="font:14px Segoe UI;background:#1e1f22;color:#ddd;padding:20px">' +
-                  '<h3>Vault</h3><p>Configure a URL do cofre (Vaultwarden/Bitwarden) em ' +
-                  '<b>Menu ⋮ → Configurações</b>.</p></body>'
-              )
-          )
+        this.loadVault()
       }
       this.win.contentView.addChildView(this.vaultView)
     } else if (this.vaultView) {
@@ -324,11 +341,19 @@ export class TabManager {
     }
     this.layout()
     this.emit()
+    if (this.vaultOpen) this.vaultView?.webContents.focus()
+  }
+
+  /** Largura responsiva do painel: ~30% da janela, entre 320 e 460 px (em janelas estreitas, até a janela toda). */
+  private vaultWidth(winW: number): number {
+    if (!this.vaultOpen) return 0
+    if (winW < 720) return winW
+    return Math.min(460, Math.max(320, Math.round(winW * 0.3)))
   }
 
   private layout(): void {
     const [w, h] = this.win.getContentSize()
-    const sb = this.vaultOpen ? VAULT_WIDTH : 0
+    const sb = this.vaultWidth(w)
     const height = Math.max(0, h - CHROME_HEIGHT)
     const tab = this.active
     if (tab?.view) tab.view.setBounds({ x: 0, y: CHROME_HEIGHT, width: Math.max(0, w - sb), height })
