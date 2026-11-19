@@ -385,6 +385,7 @@ export class TabManager {
             `Endereço: <code>${t.url}</code><br>Erro: ${desc} (${code}).<br>` +
             'Verifique a rede/VPN e o endereço em Configurações.', true))
         })
+        wc.on('did-finish-load', () => this.layout())
         this.ext.addTab(wc)
         this.loadVault()
       }
@@ -401,7 +402,15 @@ export class TabManager {
   private vaultWidth(winW: number): number {
     if (!this.vaultOpen) return 0
     if (winW < 720) return winW
-    return Math.min(460, Math.max(320, Math.round(winW * 0.3)))
+    return Math.min(640, Math.max(420, Math.round(winW * 0.42)))
+  }
+
+  /** O web vault precisa de ~800px CSS para o layout desktop; reduz o zoom em painéis mais estreitos. */
+  private applyVaultZoom(sb: number): void {
+    const wc = this.vaultView?.webContents
+    if (!wc || wc.isDestroyed()) return
+    const z = this.vaultOverride ? 1 : Math.min(1, Math.max(0.5, sb / 800))
+    if (Math.abs(wc.getZoomFactor() - z) > 0.01) wc.setZoomFactor(z)
   }
 
   private layout(): void {
@@ -410,7 +419,9 @@ export class TabManager {
     const height = Math.max(0, h - chromeHeight())
     const tab = this.active
     if (tab?.view) tab.view.setBounds({ x: 0, y: chromeHeight(), width: Math.max(0, w - sb), height })
-    if (this.vaultView && this.vaultOpen)
+    if (this.vaultView && this.vaultOpen) {
       this.vaultView.setBounds({ x: w - sb, y: chromeHeight(), width: sb, height })
+      this.applyVaultZoom(sb)
+    }
   }
 }
