@@ -1,5 +1,6 @@
 import { app, BrowserWindow, nativeTheme, Menu, ipcMain, dialog, shell, session, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
+import { autoUpdater } from 'electron-updater'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
 import { TabManager, CHROME_HEIGHT } from './tabs'
 import { getSettings, updateSettings } from './settings'
@@ -255,6 +256,23 @@ async function main(): Promise<void> {
   setInterval(() => {
     tabs.suspendInactive(getSettings().suspendMinutes * 60_000)
   }, 30_000)
+
+  // Atualização automática (GitHub Releases) — só no app instalado
+  if (app.isPackaged) {
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('error', (e) => console.error('Atualização:', e?.message))
+    autoUpdater.on('update-downloaded', (info) => {
+      void dialog
+        .showMessageBox(win, {
+          type: 'info', buttons: ['Reiniciar agora', 'Depois'], defaultId: 0,
+          message: `WADGE ${info.version} baixado.`, detail: 'Reinicie para concluir a atualização.'
+        })
+        .then((r) => { if (r.response === 0) autoUpdater.quitAndInstall() })
+    })
+    const check = (): void => { autoUpdater.checkForUpdates().catch(() => undefined) }
+    check()
+    setInterval(check, 4 * 60 * 60_000)
+  }
 
   // Primeira abertura: oferece importar favoritos do Chrome
   if (!getSettings().importPrompted) {

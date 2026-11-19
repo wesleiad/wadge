@@ -30,3 +30,8 @@ Ctrl+T nova aba · Ctrl+W fechar · Ctrl+L endereço · Ctrl+R/F5 recarregar · 
 - Instalação direta pela Chrome Web Store não é suportada (carregue a pasta descompactada); extensões MV3 têm suporte parcial.
 - Com o AdBlock pausado em um site, filtros cosméticos (ocultar elementos) podem continuar ativos até recarregar.
 - `electron-chrome-extensions` é GPL-3.0; o projeto usa a mesma licença.
+
+## Atualização automática
+O app instalado verifica o GitHub Releases ao abrir (e a cada 4 h), baixa a nova versão e pergunta se quer reiniciar.
+Para publicar uma versão: aumente `version` no `package.json`, faça `$env:GH_TOKEN = (gh auth token)` e rode `npm run release`
+(cria a Release com o instalador e o `latest.yml`). Requer repositório público.

@@ -20,3 +20,7 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   artifactName: WADGE-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: wesleiad
+  repo: wadge
