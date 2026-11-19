@@ -25,7 +25,7 @@ app.commandLine.appendSwitch(
 )
 app.setName('WD - Navegador')
 // mantém a pasta de dados antiga (configurações, favoritos) mesmo com o novo nome
-app.setPath('userData', join(app.getPath('appData'), 'WADGE'))
+app.setPath('userData', process.env.WD_USER_DATA || join(app.getPath('appData'), 'WADGE'))
 if (!app.requestSingleInstanceLock()) app.quit()
 
 let win: BrowserWindow
@@ -211,6 +211,14 @@ function registerIpc(ses: Electron.Session): void {
       { label: 'Configurações…', click: () => openManager('settings') },
       { type: 'separator' },
       { label: 'Ferramentas de desenvolvedor', click: () => tabs.devtools() },
+      { label: 'Sobre / Créditos', click: () => {
+          void dialog.showMessageBox(win, {
+            type: 'info', title: 'Sobre', message: 'WD - Navegador',
+            detail: `Versão ${app.getVersion()}
+
+Feito por Weslei Domingues - 2026`
+          })
+        } },
       { label: 'Sair', click: () => app.quit() }
     ]).popup({ window: win, x, y })
   })

@@ -24,3 +24,4 @@ li .grow { flex: 1; }
 li small { color: var(--muted); display: block; }
 code { background: var(--bg3); padding: 1px 5px; border-radius: 4px; }
 #saved, #importMsg, #extMsg { color: var(--muted); }
+footer { padding: 14px 20px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--bg3); }
