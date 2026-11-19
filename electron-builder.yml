@@ -5,13 +5,14 @@ directories:
   buildResources: build
 files:
   - out/**
+  - build/icon.png
   - package.json
 asar: true
 win:
   target:
     - target: nsis
       arch: [x64]
-  # coloque build/icon.ico (256x256) para um ícone próprio
+  icon: build/icon.ico
 nsis:
   oneClick: false
   perMachine: false

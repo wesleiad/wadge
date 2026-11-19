@@ -21,7 +21,7 @@ npm run typecheck
 ```bash
 npm run dist         # saída: release/WADGE-Setup-<versão>.exe
 ```
-Opcional: coloque `build/icon.ico` (256x256) para ícone próprio.
+O ícone fica em `build/icon.ico` e `build/icon.png`.
 
 ## Atalhos
 Ctrl+T nova aba · Ctrl+W fechar · Ctrl+L endereço · Ctrl+R/F5 recarregar · Ctrl+Tab alternar · Alt+←/→ · Ctrl+D favoritar · F12 DevTools

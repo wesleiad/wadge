@@ -94,3 +94,8 @@ $('#importBtn').onclick = async () => {
   const n = await api.importChrome(dirs)
   $('#importMsg').textContent = `${n} item(ns) importado(s) ✓`
 }
+$('#importAll').onclick = async () => {
+  const profiles: ChromeProfile[] = await api.chromeProfiles()
+  const n = await api.importChrome(profiles.map((p) => p.dir))
+  $('#importMsg').textContent = `${n} item(ns) importado(s) de ${profiles.length} perfil(is) ✓`
+}

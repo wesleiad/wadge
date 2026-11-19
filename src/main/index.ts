@@ -40,7 +40,7 @@ function openManager(tab: 'settings' | 'extensions' | 'bookmarks'): void {
     return
   }
   manager = new BrowserWindow({
-    width: 780, height: 600, parent: win, title: 'WADGE — Gerenciar',
+    width: 780, height: 600, parent: win, title: 'WADGE — Gerenciar', icon: join(__dirname, '../../build/icon.png'),
     autoHideMenuBar: true, backgroundColor: '#1e1f22',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
@@ -170,6 +170,11 @@ function registerIpc(ses: Electron.Session): void {
     Menu.buildFromTemplate([
       { label: 'Nova aba', click: () => tabs.createTab(getSettings().homepage) },
       { type: 'separator' },
+      { label: 'Importar tudo do Chrome', click: () => {
+          const ps = listChromeProfiles()
+          const n = importChrome(ps.map((p) => p.dir))
+          void dialog.showMessageBox(win, { message: `${n} item(ns) importado(s) de ${ps.length} perfil(is) do Chrome.` })
+        } },
       { label: 'Importar favoritos do Chrome…', click: () => openManager('bookmarks') },
       { label: 'Extensões…', click: () => openManager('extensions') },
       { label: 'Configurações…', click: () => openManager('settings') },
@@ -185,7 +190,7 @@ async function main(): Promise<void> {
   const ses = session.defaultSession
 
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WADGE',
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WADGE', icon: join(__dirname, '../../build/icon.png'),
     backgroundColor: '#1e1f22', autoHideMenuBar: true,
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
