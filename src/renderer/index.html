@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'" />
+  <title>WADGE</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="tabs"></div>
+  <div id="toolbar">
+    <button id="back" title="Voltar">←</button>
+    <button id="forward" title="Avançar">→</button>
+    <button id="reload" title="Recarregar">⟳</button>
+    <input id="address" type="text" spellcheck="false" placeholder="Pesquise ou digite um endereço" />
+    <button id="adblock" title="AdBlock">🛡 <span id="blocked"></span></button>
+    <button id="star" title="Adicionar aos favoritos (Ctrl+D)">☆</button>
+    <browser-action-list id="actions"></browser-action-list>
+    <button id="vault" title="Cofre de senhas">🔑 Vault</button>
+    <span id="mem" title="Memória aproximada do app">RAM —</span>
+    <button id="suspend" title="Suspender todas as abas inativas">💤</button>
+    <button id="menu" title="Menu">⋮</button>
+  </div>
+  <div id="bookmarks"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

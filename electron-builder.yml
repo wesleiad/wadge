@@ -1,0 +1,21 @@
+appId: br.com.wadge.browser
+productName: WADGE
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # coloque build/icon.ico (256x256) para um ícone próprio
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: WADGE-Setup-${version}.${ext}

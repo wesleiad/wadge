@@ -1,0 +1,40 @@
+:root {
+  --bg: #1e1f22; --bg2: #2b2d31; --bg3: #383a40; --fg: #e3e5e8; --muted: #949ba4; --accent: #5865f2;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #e9eaee; --bg2: #ffffff; --bg3: #d5d7de; --fg: #1d1e22; --muted: #5c6068; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 13px "Segoe UI", system-ui, sans-serif; user-select: none; overflow: hidden; }
+
+#tabs { height: 40px; display: flex; align-items: flex-end; gap: 2px; padding: 6px 6px 0; }
+.tab { display: flex; align-items: center; gap: 6px; width: 200px; min-width: 60px; flex: 0 1 200px; height: 34px;
+  padding: 0 8px; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); cursor: default; }
+.tab:hover { background: var(--bg3); }
+.tab.active { background: var(--bg2); color: var(--fg); }
+.tab.suspended .title { opacity: .55; font-style: italic; }
+.tab .fav { width: 16px; height: 16px; flex: none; border-radius: 3px; object-fit: contain; }
+.tab .ph { background: var(--bg3); }
+.tab .title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tab .x { border: 0; background: none; color: inherit; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; }
+.tab .x:hover { background: var(--bg3); }
+#newtab { align-self: center; }
+
+#toolbar { height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--bg2); }
+button { border: 0; background: transparent; color: var(--fg); min-width: 30px; height: 30px; padding: 0 8px;
+  border-radius: 6px; font: inherit; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--bg3); }
+button:disabled { opacity: .35; cursor: default; }
+button.off { opacity: .45; }
+button.on { background: var(--accent); color: #fff; }
+#address { flex: 1; height: 30px; border: 1px solid transparent; border-radius: 15px; background: var(--bg);
+  color: var(--fg); padding: 0 14px; font: inherit; user-select: text; outline: none; }
+#address:focus { border-color: var(--accent); }
+#mem { color: var(--muted); font-size: 12px; padding: 0 4px; white-space: nowrap; }
+browser-action-list { display: flex; }
+
+#bookmarks { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: var(--bg2);
+  border-top: 1px solid var(--bg); overflow: hidden; }
+#bookmarks button { height: 24px; max-width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+#bookmarks .empty { color: var(--muted); font-size: 12px; padding: 0 6px; }

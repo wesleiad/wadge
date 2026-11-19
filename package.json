@@ -1,0 +1,28 @@
+{
+  "name": "wadge",
+  "productName": "WADGE",
+  "version": "0.1.0",
+  "description": "WADGE - navegador desktop leve e rápido para Windows 10/11",
+  "main": "./out/main/index.js",
+  "author": "TI",
+  "license": "GPL-3.0",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "dist": "electron-vite build && electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.20.3",
+    "electron-chrome-extensions": "^4.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}

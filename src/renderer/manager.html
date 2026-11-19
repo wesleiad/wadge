@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>WADGE — Gerenciar</title>
+  <link rel="stylesheet" href="./manager.css" />
+</head>
+<body>
+  <nav>
+    <button data-tab="settings">Configurações</button>
+    <button data-tab="extensions">Extensões</button>
+    <button data-tab="bookmarks">Favoritos</button>
+  </nav>
+
+  <section id="settings">
+    <label>Página inicial <input id="homepage" /></label>
+    <label>Buscador (use %s) <input id="searchEngine" /></label>
+    <label>Suspender abas inativas após (min) <input id="suspendMinutes" type="number" min="1" /></label>
+    <label>URL do cofre (Vaultwarden/Bitwarden) <input id="vaultUrl" placeholder="https://vault.suaempresa.com.br" /></label>
+    <label class="row"><input id="adblockEnabled" type="checkbox" /> AdBlock ativo (global)</label>
+    <label>Sites com AdBlock pausado (um por linha) <textarea id="adblockPausedSites" rows="4"></textarea></label>
+    <div class="actions"><button id="saveSettings" class="primary">Salvar</button><span id="saved"></span></div>
+  </section>
+
+  <section id="extensions">
+    <p>Extensões ficam na pasta <code>extensions/</code> dos dados do usuário e são carregadas ao abrir o navegador.
+       Selecione uma pasta <b>descompactada</b> (um .crx deve ser extraído antes). Para o cofre, baixe a extensão
+       web do Bitwarden e carregue aqui.</p>
+    <div class="actions">
+      <button id="addExt" class="primary">Carregar extensão (pasta)…</button>
+      <button id="openExt">Abrir pasta de extensões</button>
+    </div>
+    <p id="extMsg"></p>
+    <ul id="extList"></ul>
+  </section>
+
+  <section id="bookmarks">
+    <p>Perfis do Chrome encontrados em <code>%LOCALAPPDATA%\Google\Chrome\User Data</code>:</p>
+    <ul id="profiles"></ul>
+    <div class="actions"><button id="importBtn" class="primary">Importar selecionados</button><span id="importMsg"></span></div>
+  </section>
+  <script type="module" src="./manager.ts"></script>
+</body>
+</html>
