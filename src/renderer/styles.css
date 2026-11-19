@@ -1,43 +1,57 @@
-:root {
-  --bg: #1e1f22; --bg2: #2b2d31; --bg3: #383a40; --fg: #e3e5e8; --muted: #949ba4; --accent: #5865f2;
-}
-@media (prefers-color-scheme: light) {
-  :root { --bg: #e9eaee; --bg2: #ffffff; --bg3: #d5d7de; --fg: #1d1e22; --muted: #5c6068; }
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+@import './theme.css';
+
+html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
   font: 13px "Segoe UI", system-ui, sans-serif; user-select: none; overflow: hidden; }
 
-#titlebar { height: 40px; display: flex; align-items: flex-end; padding: 0 150px 0 12px; -webkit-app-region: drag; }
+#titlebar { height: 40px; display: flex; align-items: flex-end; padding: 0 150px 0 12px; background: var(--bar);
+  -webkit-app-region: drag; }
 #logo { width: 22px; height: 22px; border-radius: 6px; align-self: center; margin-right: 10px; flex: none; }
 #tabs { flex: 1; min-width: 0; height: 40px; display: flex; align-items: flex-end; gap: 2px; padding: 6px 6px 0 0; }
 .tab, #tabs button, #toolbar, #bookmarks { -webkit-app-region: no-drag; }
-.tab { display: flex; align-items: center; gap: 6px; width: 200px; min-width: 60px; flex: 0 1 200px; height: 34px;
-  padding: 0 8px; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); cursor: default; }
-.tab:hover { background: var(--bg3); }
-.tab.active { background: var(--bg2); color: var(--fg); }
-.tab.suspended .title { opacity: .55; font-style: italic; }
-.tab .fav { width: 16px; height: 16px; flex: none; border-radius: 3px; object-fit: contain; }
-.tab .ph { background: var(--bg3); }
-.tab .title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.tab .x { border: 0; background: none; color: inherit; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; }
-.tab .x:hover { background: var(--bg3); }
-#newtab { align-self: center; }
 
-#toolbar { height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--bg2); }
-button { border: 0; background: transparent; color: var(--fg); min-width: 30px; height: 30px; padding: 0 8px;
-  border-radius: 6px; font: inherit; cursor: pointer; }
-button:hover:not(:disabled) { background: var(--bg3); }
-button:disabled { opacity: .35; cursor: default; }
+.tab { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 200px; min-width: 60px; height: 34px;
+  padding: 0 6px 0 9px; border-radius: 9px 9px 0 0; color: var(--muted); cursor: default;
+  animation: tabin .16s ease-out; transition: background-color .12s; }
+@keyframes tabin { from { opacity: 0; transform: translateY(6px); } }
+.tab:hover { background: var(--hover); }
+.tab.active { background: var(--paper); color: var(--ink); }
+/* traço de caneta sob a aba ativa */
+.tab.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 2px;
+  background: var(--accent); transform-origin: left; animation: pen .22s ease-out; }
+@keyframes pen { from { transform: scaleX(0); } }
+.tab .fav { width: 16px; height: 16px; flex: none; border-radius: 3px; object-fit: contain; }
+.tab .ph { width: 14px; height: 14px; flex: none; border: var(--pen) solid currentColor; border-radius: 50%; opacity: .55; }
+.tab.loading .ph { border-color: var(--accent) transparent var(--accent) transparent; opacity: 1; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tab.suspended .title { opacity: .55; font-style: italic; }
+.tab .title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tab .x { width: 20px; height: 20px; min-width: 20px; padding: 0; opacity: 0; transition: opacity .12s; }
+.tab:hover .x, .tab.active .x { opacity: .8; }
+#newtab { align-self: center; width: 28px; height: 28px; min-width: 28px; padding: 0; }
+
+#toolbar { height: 44px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: var(--paper);
+  border-bottom: 1px solid var(--line); }
+button { border: 0; background: transparent; color: var(--ink); min-width: 32px; height: 32px; padding: 0 7px;
+  border-radius: 8px; font: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  transition: background-color .12s, transform .1s; }
+button:hover:not(:disabled) { background: var(--hover); }
+button:active:not(:disabled) { transform: scale(.94); }
+button:disabled { opacity: .3; cursor: default; }
 button.off { opacity: .45; }
-button.on { background: var(--accent); color: #fff; }
-#address { flex: 1; height: 30px; border: 1px solid transparent; border-radius: 15px; background: var(--bg);
-  color: var(--fg); padding: 0 14px; font: inherit; user-select: text; outline: none; }
-#address:focus { border-color: var(--accent); }
-#mem { color: var(--muted); font-size: 12px; padding: 0 4px; white-space: nowrap; }
+button.on { background: var(--accent-soft); color: var(--accent); }
+button.starred { color: var(--accent); }
+button.starred .ic path { fill: var(--accent-soft); }
+#reload.spin .ic { animation: spin .8s linear infinite; }
+#address { flex: 1; height: 32px; border: var(--pen) solid var(--line); border-radius: 16px; background: var(--paper2);
+  color: var(--ink); padding: 0 16px; font: inherit; user-select: text; outline: none; transition: border-color .12s; }
+#address:focus { border-color: var(--accent); background: var(--paper); }
+#blocked { font-size: 11px; color: var(--accent); }
+#mem { color: var(--muted); font-size: 12px; padding: 0 6px; white-space: nowrap; }
 browser-action-list { display: flex; }
 
-#bookmarks { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: var(--bg2);
-  border-top: 1px solid var(--bg); overflow: hidden; }
-#bookmarks button { height: 24px; max-width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+#bookmarks { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: var(--paper);
+  border-bottom: 1px solid var(--line); overflow: hidden; }
+#bookmarks.hidden { display: none; }
+#bookmarks button { height: 24px; max-width: 170px; min-width: 0; font-size: 12px; padding: 0 8px; }
+#bookmarks button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #bookmarks .empty { color: var(--muted); font-size: 12px; padding: 0 6px; }

@@ -9,18 +9,18 @@
 <body>
   <div id="titlebar"><img id="logo" src="./logo.png" alt="WD" /><div id="tabs"></div></div>
   <div id="toolbar">
-    <button id="back" title="Voltar">←</button>
-    <button id="forward" title="Avançar">→</button>
-    <button id="reload" title="Recarregar">⟳</button>
+    <button id="back" title="Voltar" data-icon="back"></button>
+    <button id="forward" title="Avançar" data-icon="forward"></button>
+    <button id="reload" title="Recarregar" data-icon="reload"></button>
     <input id="address" type="text" spellcheck="false" placeholder="Pesquise ou digite um endereço" />
-    <button id="adblock" title="AdBlock">🛡 <span id="blocked"></span></button>
-    <button id="star" title="Adicionar aos favoritos (Ctrl+D)">☆</button>
+    <button id="adblock" title="AdBlock" data-icon="shield"><span id="blocked"></span></button>
+    <button id="star" title="Adicionar aos favoritos (Ctrl+D)" data-icon="star"></button>
     <browser-action-list id="actions"></browser-action-list>
-    <button id="vault" title="Cofre de senhas">🔑 Vault</button>
+    <button id="vault" title="Cofre de senhas" data-icon="key">Vault</button>
     <span id="mem" title="Memória aproximada do app">RAM —</span>
-    <button id="suspend" title="Suspender todas as abas inativas">💤</button>
-    <button id="theme" title="Tema (claro/escuro)">🌓</button>
-    <button id="menu" title="Menu">⋮</button>
+    <button id="suspend" title="Suspender todas as abas inativas" data-icon="moon"></button>
+    <button id="theme" title="Tema (claro/escuro)" data-icon="theme"></button>
+    <button id="menu" title="Menu" data-icon="menu"></button>
   </div>
   <div id="bookmarks"></div>
   <script type="module" src="./main.ts"></script>

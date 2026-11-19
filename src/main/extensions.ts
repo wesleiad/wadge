@@ -1,6 +1,7 @@
 import { app, type Session } from 'electron'
 import { join, basename } from 'path'
 import { existsSync, mkdirSync, readdirSync, readFileSync, cpSync, rmSync, statSync } from 'fs'
+import { getSettings, updateSettings } from './settings'
 import type { ExtensionInfo } from '../shared/types'
 
 export const extensionsDir = (): string => join(app.getPath('userData'), 'extensions')
@@ -9,62 +10,138 @@ export const extensionsDir = (): string => join(app.getPath('userData'), 'extens
 function resolveRoot(dir: string): string | null {
   if (existsSync(join(dir, 'manifest.json'))) return dir
   try {
-    const subs = readdirSync(dir)
-      .filter((s) => existsSync(join(dir, s, 'manifest.json')))
-      .sort()
+    const subs = readdirSync(dir).filter((s) => existsSync(join(dir, s, 'manifest.json'))).sort()
     return subs.length ? join(dir, subs[subs.length - 1]) : null
   } catch {
     return null
   }
 }
 
-export async function loadAllExtensions(ses: Session): Promise<void> {
+interface Manifest {
+  name?: string
+  version?: string
+  description?: string
+  default_locale?: string
+  icons?: Record<string, string>
+}
+
+function readJson(file: string): any {
+  return JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''))
+}
+
+function readManifest(root: string): Manifest {
+  try {
+    return readJson(join(root, 'manifest.json'))
+  } catch {
+    return {}
+  }
+}
+
+/** Resolve textos "__MSG_chave__" usando _locales. */
+function localized(root: string, m: Manifest, text: string | undefined, fallback: string): string {
+  if (!text) return fallback
+  const mm = /^__MSG_(.+)__$/.exec(text)
+  if (!mm) return text
+  for (const loc of [m.default_locale, 'pt_BR', 'en', 'en_US']) {
+    if (!loc) continue
+    try {
+      const msgs = readJson(join(root, '_locales', loc, 'messages.json'))
+      const key = Object.keys(msgs).find((k) => k.toLowerCase() === mm[1].toLowerCase())
+      if (key && msgs[key].message) return msgs[key].message
+    } catch {
+      /* tenta o próximo idioma */
+    }
+  }
+  return fallback
+}
+
+function iconOf(root: string, m: Manifest): string {
+  const sizes = Object.keys(m.icons ?? {}).map(Number).filter((n) => n > 0).sort((a, b) => b - a)
+  const pick = sizes.find((n) => n <= 128) ?? sizes[0]
+  if (!pick) return ''
+  try {
+    const f = join(root, m.icons![String(pick)])
+    const ext = f.toLowerCase().endsWith('.svg') ? 'svg+xml' : 'png'
+    return `data:image/${ext};base64,` + readFileSync(f).toString('base64')
+  } catch {
+    return ''
+  }
+}
+
+function folders(): Array<{ key: string; root: string }> {
   mkdirSync(extensionsDir(), { recursive: true })
-  for (const name of readdirSync(extensionsDir())) {
-    const full = join(extensionsDir(), name)
+  const out: Array<{ key: string; root: string }> = []
+  for (const key of readdirSync(extensionsDir())) {
+    const full = join(extensionsDir(), key)
     if (!statSync(full).isDirectory()) continue
     const root = resolveRoot(full)
-    if (!root) continue
+    if (root) out.push({ key, root })
+  }
+  return out
+}
+
+export async function loadAllExtensions(ses: Session): Promise<void> {
+  const disabled = getSettings().disabledExtensions
+  for (const { key, root } of folders()) {
+    if (disabled.includes(key)) continue
     try {
       await ses.extensions.loadExtension(root, { allowFileAccess: true })
     } catch (e) {
-      console.error('Falha ao carregar extensão', name, e)
+      console.error('Falha ao carregar extensão', key, e)
     }
   }
 }
 
 export function listExtensions(ses: Session): ExtensionInfo[] {
-  return ses.extensions
-    .getAllExtensions()
-    .filter((e) => e.path.startsWith(extensionsDir()))
-    .map((e) => ({ id: e.id, name: e.name, version: e.version, path: e.path }))
+  const loaded = ses.extensions.getAllExtensions()
+  return folders().map(({ key, root }) => {
+    const m = readManifest(root)
+    const live = loaded.find((e) => e.path === root)
+    return {
+      key,
+      id: live?.id ?? '',
+      name: localized(root, m, m.name, key),
+      version: m.version ?? '',
+      description: localized(root, m, m.description, ''),
+      path: root,
+      enabled: !!live,
+      icon: iconOf(root, m)
+    }
+  })
 }
 
 export async function addExtension(ses: Session, src: string): Promise<ExtensionInfo> {
-  const root = resolveRoot(src)
-  if (!root) throw new Error('A pasta não contém manifest.json (extraia o .crx antes).')
+  if (!resolveRoot(src)) throw new Error('A pasta não contém manifest.json (extraia o .crx antes).')
   mkdirSync(extensionsDir(), { recursive: true })
-  const dest = join(extensionsDir(), basename(src))
+  const key = basename(src)
+  const dest = join(extensionsDir(), key)
   if (!existsSync(dest)) cpSync(src, dest, { recursive: true })
-  const finalRoot = resolveRoot(dest)!
-  const ext = await ses.extensions.loadExtension(finalRoot, { allowFileAccess: true })
-  return { id: ext.id, name: ext.name, version: ext.version, path: ext.path }
+  updateSettings({ disabledExtensions: getSettings().disabledExtensions.filter((k) => k !== key) })
+  const root = resolveRoot(dest)!
+  if (!ses.extensions.getAllExtensions().some((e) => e.path === root))
+    await ses.extensions.loadExtension(root, { allowFileAccess: true })
+  return listExtensions(ses).find((e) => e.key === key)!
 }
 
-export function removeExtension(ses: Session, id: string): void {
-  const ext = ses.extensions.getExtension(id)
-  if (!ext) return
-  ses.extensions.removeExtension(id)
-  // apaga a pasta de topo dentro de extensions/
-  const rel = ext.path.slice(extensionsDir().length + 1).split(/[\\/]/)[0]
-  if (rel) rmSync(join(extensionsDir(), rel), { recursive: true, force: true })
-}
-
-export function readManifestName(dir: string): string {
-  try {
-    const root = resolveRoot(dir)
-    return JSON.parse(readFileSync(join(root!, 'manifest.json'), 'utf8')).name
-  } catch {
-    return basename(dir)
+export async function setExtensionEnabled(ses: Session, key: string, enabled: boolean): Promise<void> {
+  const f = folders().find((x) => x.key === key)
+  if (!f) return
+  const live = ses.extensions.getAllExtensions().find((e) => e.path === f.root)
+  const dis = getSettings().disabledExtensions.filter((k) => k !== key)
+  if (enabled) {
+    if (!live) await ses.extensions.loadExtension(f.root, { allowFileAccess: true })
+    updateSettings({ disabledExtensions: dis })
+  } else {
+    if (live) ses.extensions.removeExtension(live.id)
+    updateSettings({ disabledExtensions: [...dis, key] })
   }
+}
+
+export function removeExtension(ses: Session, key: string): void {
+  const f = folders().find((x) => x.key === key)
+  if (!f) return
+  const live = ses.extensions.getAllExtensions().find((e) => e.path === f.root)
+  if (live) ses.extensions.removeExtension(live.id)
+  rmSync(join(extensionsDir(), key), { recursive: true, force: true })
+  updateSettings({ disabledExtensions: getSettings().disabledExtensions.filter((k) => k !== key) })
 }

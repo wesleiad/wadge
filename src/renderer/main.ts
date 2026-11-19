@@ -1,11 +1,15 @@
-import type { TabsState, AdblockStatus, BookmarkNode } from '../shared/types'
+import type { TabsState, AdblockStatus, BookmarkNode, Settings } from '../shared/types'
+import { icon, hydrateIcons } from './icons'
 
 const $ = <T extends HTMLElement>(s: string): T => document.querySelector(s) as T
 const api = window.api
 
+hydrateIcons()
+
 const tabsEl = $('#tabs')
 const address = $<HTMLInputElement>('#address')
 let state: TabsState = { tabs: [], activeId: -1 }
+let bookmarkUrls = new Set<string>()
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K, cls = '', text = ''
@@ -19,31 +23,35 @@ function el<K extends keyof HTMLElementTagNameMap>(
 function renderTabs(): void {
   tabsEl.replaceChildren()
   for (const t of state.tabs) {
-    const tab = el('div', 'tab' + (t.active ? ' active' : '') + (t.suspended ? ' suspended' : ''))
+    const tab = el('div', 'tab' + (t.active ? ' active' : '') + (t.suspended ? ' suspended' : '') + (t.loading ? ' loading' : ''))
     tab.title = t.suspended ? `${t.title} (suspensa)` : t.title
-    if (t.favicon) {
+    if (t.favicon && !t.loading) {
       const img = el('img', 'fav')
       img.src = t.favicon
+      img.onerror = () => img.replaceWith(el('span', 'ph'))
       tab.append(img)
-    } else tab.append(el('span', 'fav ph'))
-    tab.append(el('span', 'title', (t.suspended ? '💤 ' : t.loading ? '… ' : '') + t.title))
-    const x = el('button', 'x', '✕')
+    } else tab.append(el('span', 'ph'))
+    tab.append(el('span', 'title', t.title))
+    const x = el('button', 'x')
+    x.innerHTML = icon('close', 14)
     x.onclick = (e) => { e.stopPropagation(); api.closeTab(t.id) }
     tab.append(x)
     tab.onclick = () => api.activate(t.id)
     tab.onauxclick = (e) => { if (e.button === 1) api.closeTab(t.id) }
     tabsEl.append(tab)
   }
-  const plus = el('button', '', '+')
+  const plus = el('button')
   plus.id = 'newtab'
   plus.title = 'Nova aba (Ctrl+T)'
+  plus.innerHTML = icon('plus', 16)
   plus.onclick = () => api.newTab()
   tabsEl.append(plus)
 
   const a = state.tabs.find((t) => t.active)
   $<HTMLButtonElement>('#back').disabled = !a?.canGoBack
   $<HTMLButtonElement>('#forward').disabled = !a?.canGoForward
-  $('#reload').textContent = a?.loading ? '✕' : '⟳'
+  $('#reload').classList.toggle('spin', !!a?.loading)
+  $('#star').classList.toggle('starred', !!a && bookmarkUrls.has(a.url))
   if (document.activeElement !== address) address.value = a?.url?.startsWith('data:') ? '' : (a?.url ?? '')
 }
 
@@ -75,7 +83,7 @@ $('#adblock').onclick = (e) => {
   api.adblockMenu(Math.round(r.left), Math.round(r.bottom))
 }
 
-// Favoritar, Vault, memória, menu
+// Favoritar, Vault, memória, tema, menu
 $('#star').onclick = () => api.addBookmark()
 $('#vault').onclick = () => api.toggleVault()
 api.onVault((open) => $('#vault').classList.toggle('on', open))
@@ -90,19 +98,25 @@ $('#theme').onclick = (e) => {
 }
 $('#menu').onclick = (e) => {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  api.appMenu(Math.round(r.right - 180), Math.round(r.bottom))
+  api.appMenu(Math.round(r.right - 240), Math.round(r.bottom))
 }
 
 // Barra de favoritos
+function flat(list: BookmarkNode[], out: Set<string>): void {
+  for (const n of list) { if (n.url) out.add(n.url); if (n.children) flat(n.children, out) }
+}
 function renderBookmarks(list: BookmarkNode[]): void {
+  bookmarkUrls = new Set()
+  flat(list, bookmarkUrls)
   const bar = $('#bookmarks')
   bar.replaceChildren()
   if (!list.length) {
-    bar.append(el('span', 'empty', 'Nenhum favorito. Use ☆ ou importe do Chrome pelo menu ⋮.'))
-    return
+    bar.append(el('span', 'empty', 'Nenhum favorito. Use a estrela ou importe do Chrome pelo menu.'))
   }
   for (const n of list) {
-    const b = el('button', '', (n.type === 'folder' ? '📁 ' : '') + n.name)
+    const b = el('button')
+    b.innerHTML = (n.type === 'folder' ? icon('folder', 15) : '') + `<span></span>`
+    b.querySelector('span')!.textContent = n.name
     b.title = n.url ?? n.name
     b.onclick = () => {
       if (n.type === 'url') api.openBookmark(n.id)
@@ -114,6 +128,12 @@ function renderBookmarks(list: BookmarkNode[]): void {
     b.oncontextmenu = (e) => { e.preventDefault(); api.bookmarkContext(n.id) }
     bar.append(b)
   }
+  renderTabs()
 }
 api.onBookmarks((b) => renderBookmarks(b as BookmarkNode[]))
 void api.getBookmarks().then(renderBookmarks)
+
+// Mostrar/ocultar a barra de favoritos (configuração)
+const applySettings = (s: Settings): void => { $('#bookmarks').classList.toggle('hidden', !s.showBookmarksBar) }
+api.onSettings(applySettings)
+void api.getSettings().then(applySettings)

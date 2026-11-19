@@ -1,8 +1,9 @@
 import { app, BrowserWindow, nativeTheme, Menu, ipcMain, dialog, shell, session, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
+import { readFileSync, writeFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
-import { TabManager, CHROME_HEIGHT } from './tabs'
+import { TabManager } from './tabs'
 import { getSettings, updateSettings } from './settings'
 import { initAdblock, applyAdblock, getBlocked, isPausedHost, setGlobalAdblock, toggleSite } from './adblock'
 import {
@@ -10,9 +11,13 @@ import {
   listChromeProfiles, importChrome
 } from './bookmarks'
 import {
-  loadAllExtensions, listExtensions, addExtension, removeExtension, extensionsDir
+  loadAllExtensions, listExtensions, addExtension, removeExtension, setExtensionEnabled, extensionsDir
 } from './extensions'
-import type { AdblockStatus, BookmarkNode, Settings } from '../shared/types'
+import { getHistory, removeHistory, clearHistory, flushHistory } from './history'
+import {
+  initDownloads, listDownloads, openDownload, showDownload, cancelDownload, clearDownloads
+} from './downloads'
+import type { AdblockStatus, BookmarkNode, ClearOptions, SessionTab, Settings } from '../shared/types'
 
 // ---- Economia de memória (antes do app ficar pronto) ----
 app.commandLine.appendSwitch('enable-low-end-device-mode')
@@ -28,36 +33,30 @@ app.setName('WD - Navegador')
 app.setPath('userData', process.env.WD_USER_DATA || join(app.getPath('appData'), 'WADGE'))
 if (!app.requestSingleInstanceLock()) app.quit()
 
+const ICON = join(__dirname, '../../build/icon.png')
 let win: BrowserWindow
 let manager: BrowserWindow | null = null
 let tabs: TabManager
 
-function pageUrl(page: string, query = ''): { file?: string; url?: string; query: string } {
-  const dev = process.env['ELECTRON_RENDERER_URL']
-  return dev
-    ? { url: `${dev}/${page}.html`, query }
-    : { file: join(__dirname, `../renderer/${page}.html`), query }
-}
-
 function load(w: BrowserWindow, page: string, query = ''): void {
-  const p = pageUrl(page, query)
-  if (p.url) void w.loadURL(p.url + (query ? '?' + query : ''))
-  else void w.loadFile(p.file!, { search: query })
+  const dev = process.env['ELECTRON_RENDERER_URL']
+  if (dev) void w.loadURL(`${dev}/${page}.html${query ? '?' + query : ''}`)
+  else void w.loadFile(join(__dirname, `../renderer/${page}.html`), { search: query })
 }
 
-function openManager(tab: 'settings' | 'extensions' | 'bookmarks'): void {
+function openManager(page = 'appearance'): void {
   if (manager && !manager.isDestroyed()) {
     manager.focus()
-    manager.webContents.send('manager:tab', tab)
+    manager.webContents.send('manager:tab', page)
     return
   }
   manager = new BrowserWindow({
-    width: 780, height: 600, parent: win, title: 'WD — Gerenciar', icon: join(__dirname, '../../build/icon.png'),
-    autoHideMenuBar: true, backgroundColor: '#1e1f22',
+    width: 1040, height: 700, minWidth: 720, minHeight: 480, title: 'WD - Configurações', icon: ICON,
+    autoHideMenuBar: true, backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1f3a' : '#fdfcf8',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
   manager.removeMenu()
-  load(manager, 'manager', 'tab=' + tab)
+  load(manager, 'manager', 'tab=' + page)
 }
 
 function adblockStatus(): AdblockStatus {
@@ -74,8 +73,8 @@ function adblockStatus(): AdblockStatus {
 
 const overlay = (): { color: string; symbolColor: string; height: number } =>
   nativeTheme.shouldUseDarkColors
-    ? { color: '#1e1f22', symbolColor: '#e3e5e8', height: 40 }
-    : { color: '#e9eaee', symbolColor: '#1d1e22', height: 40 }
+    ? { color: '#151833', symbolColor: '#e8e4d8', height: 40 }
+    : { color: '#ece8da', symbolColor: '#1c1c1c', height: 40 }
 
 function applyTheme(): void {
   nativeTheme.themeSource = getSettings().theme
@@ -98,6 +97,21 @@ function folderMenu(nodes: BookmarkNode[]): MenuItemConstructorOptions[] {
   )
 }
 
+function addCurrentBookmark(): void {
+  const t = tabs.active
+  if (t && /^https?:/i.test(t.url)) addBookmark(t.title, t.url)
+}
+
+async function clearData(ses: Electron.Session, o: ClearOptions): Promise<void> {
+  if (o.history) clearHistory()
+  if (o.downloads) clearDownloads()
+  if (o.cache) await ses.clearCache()
+  if (o.cookies)
+    await ses.clearStorageData({
+      storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage']
+    })
+}
+
 function buildAppMenu(): void {
   const focusAddr = (): void => win.webContents.send('ui:focus-address')
   Menu.setApplicationMenu(Menu.buildFromTemplate([
@@ -114,15 +128,81 @@ function buildAppMenu(): void {
         { label: 'Voltar', accelerator: 'Alt+Left', click: () => tabs.back() },
         { label: 'Avançar', accelerator: 'Alt+Right', click: () => tabs.forward() },
         { label: 'Favoritar', accelerator: 'CmdOrCtrl+D', click: () => addCurrentBookmark() },
+        { label: 'Histórico', accelerator: 'CmdOrCtrl+H', click: () => openManager('history') },
+        { label: 'Downloads', accelerator: 'CmdOrCtrl+J', click: () => openManager('downloads') },
+        { label: 'Limpar dados de navegação', accelerator: 'CmdOrCtrl+Shift+Delete', click: () => openManager('privacy') },
+        { label: 'Imprimir', accelerator: 'CmdOrCtrl+P', click: () => tabs.print() },
+        { label: 'Aumentar zoom', accelerator: 'CmdOrCtrl+Plus', click: () => tabs.zoom(0.5) },
+        { label: 'Aumentar zoom (=)', accelerator: 'CmdOrCtrl+=', click: () => tabs.zoom(0.5) },
+        { label: 'Diminuir zoom', accelerator: 'CmdOrCtrl+-', click: () => tabs.zoom(-0.5) },
+        { label: 'Zoom 100%', accelerator: 'CmdOrCtrl+0', click: () => tabs.zoom(0) },
         { label: 'Ferramentas de desenvolvedor', accelerator: 'F12', click: () => tabs.devtools() }
       ]
     }
   ]))
 }
 
-function addCurrentBookmark(): void {
-  const t = tabs.active
-  if (t && /^https?:/i.test(t.url)) addBookmark(t.title, t.url)
+/** Menu principal (⋮) no estilo do Chrome, em português. */
+function appMenuTemplate(): MenuItemConstructorOptions[] {
+  const s = getSettings()
+  const recent = getHistory('', 8)
+  const themeItem = (label: string, theme: Settings['theme']): MenuItemConstructorOptions => ({
+    label, type: 'radio', checked: s.theme === theme,
+    click: () => { updateSettings({ theme }); applyTheme() }
+  })
+  return [
+    { label: 'Nova aba', accelerator: 'Ctrl+T', click: () => tabs.createTab(s.homepage) },
+    { type: 'separator' },
+    {
+      label: 'Histórico',
+      submenu: [
+        { label: 'Mostrar histórico completo', accelerator: 'Ctrl+H', click: () => openManager('history') },
+        { type: 'separator' },
+        ...(recent.length
+          ? recent.map<MenuItemConstructorOptions>((h) => ({
+              label: (h.title || h.url).slice(0, 60), click: () => tabs.createTab(h.url, true)
+            }))
+          : [{ label: '(vazio)', enabled: false }])
+      ]
+    },
+    { label: 'Downloads', accelerator: 'Ctrl+J', click: () => openManager('downloads') },
+    {
+      label: 'Favoritos',
+      submenu: [
+        { label: 'Favoritar esta página', accelerator: 'Ctrl+D', click: () => addCurrentBookmark() },
+        { label: 'Mostrar barra de favoritos', type: 'checkbox', checked: s.showBookmarksBar,
+          click: () => { updateSettings({ showBookmarksBar: !s.showBookmarksBar }); win.webContents.send('settings:changed', getSettings()) } },
+        { label: 'Importar do Chrome…', click: () => openManager('bookmarks') },
+        { type: 'separator' },
+        ...folderMenu(getBookmarks())
+      ]
+    },
+    { label: 'Extensões', click: () => openManager('extensions') },
+    { type: 'separator' },
+    {
+      label: 'Zoom',
+      submenu: [
+        { label: 'Aumentar', accelerator: 'Ctrl+Plus', click: () => tabs.zoom(0.5) },
+        { label: 'Diminuir', accelerator: 'Ctrl+-', click: () => tabs.zoom(-0.5) },
+        { label: 'Redefinir (100%)', accelerator: 'Ctrl+0', click: () => tabs.zoom(0) }
+      ]
+    },
+    { label: 'Imprimir…', accelerator: 'Ctrl+P', click: () => tabs.print() },
+    {
+      label: 'Mais ferramentas',
+      submenu: [
+        { label: 'Limpar dados de navegação…', accelerator: 'Ctrl+Shift+Del', click: () => openManager('privacy') },
+        { label: 'Suspender abas inativas agora', click: () => tabs.suspendInactive(0) },
+        { label: 'Ferramentas do desenvolvedor', accelerator: 'F12', click: () => tabs.devtools() }
+      ]
+    },
+    { label: 'Tema', submenu: [themeItem('Claro', 'light'), themeItem('Escuro', 'dark'), themeItem('Sistema', 'system')] },
+    { type: 'separator' },
+    { label: 'Configurações', click: () => openManager('appearance') },
+    { label: 'Sobre o WD - Navegador', click: () => openManager('about') },
+    { type: 'separator' },
+    { label: 'Sair', click: () => app.quit() }
+  ]
 }
 
 function registerIpc(ses: Electron.Session): void {
@@ -161,9 +241,7 @@ function registerIpc(ses: Electron.Session): void {
     Menu.buildFromTemplate(folderMenu(f?.children ?? [])).popup({ window: win, x, y })
   })
   ipcMain.on('bookmarks:context', (_e, id: string) => {
-    Menu.buildFromTemplate([
-      { label: 'Remover favorito', click: () => removeBookmark(id) }
-    ]).popup({ window: win })
+    Menu.buildFromTemplate([{ label: 'Remover favorito', click: () => removeBookmark(id) }]).popup({ window: win })
   })
   ipcMain.handle('chrome:profiles', () => listChromeProfiles())
   ipcMain.handle('chrome:import', (_e, dirs: string[]) => importChrome(dirs))
@@ -171,11 +249,18 @@ function registerIpc(ses: Electron.Session): void {
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
     const s = updateSettings(patch)
+    if ('theme' in patch) applyTheme()
     applyAdblock()
     pushState()
+    if (!win.isDestroyed()) win.webContents.send('settings:changed', s)
     return s
   })
+  ipcMain.handle('dialog:folder', async () => {
+    const r = await dialog.showOpenDialog(manager ?? win, { properties: ['openDirectory'] })
+    return r.canceled ? '' : r.filePaths[0]
+  })
 
+  // extensões
   ipcMain.handle('ext:list', () => listExtensions(ses))
   ipcMain.handle('ext:add', async () => {
     const r = await dialog.showOpenDialog(manager ?? win, {
@@ -185,8 +270,33 @@ function registerIpc(ses: Electron.Session): void {
     try { return { ok: await addExtension(ses, r.filePaths[0]) } }
     catch (e) { return { error: (e as Error).message } }
   })
-  ipcMain.handle('ext:remove', (_e, id: string) => { removeExtension(ses, id) })
+  ipcMain.handle('ext:toggle', (_e, key: string, on: boolean) => setExtensionEnabled(ses, key, on))
+  ipcMain.handle('ext:remove', (_e, key: string) => { removeExtension(ses, key) })
   ipcMain.on('ext:open-folder', () => { void shell.openPath(extensionsDir()) })
+
+  // histórico, downloads, dados
+  ipcMain.handle('history:get', (_e, q: string) => getHistory(q))
+  ipcMain.handle('history:remove', (_e, time: number) => removeHistory(time))
+  ipcMain.handle('downloads:list', () => listDownloads())
+  ipcMain.on('downloads:open', (_e, id: number) => openDownload(id))
+  ipcMain.on('downloads:show', (_e, id: number) => showDownload(id))
+  ipcMain.on('downloads:cancel', (_e, id: number) => cancelDownload(id))
+  ipcMain.handle('downloads:clear', () => clearDownloads())
+  ipcMain.handle('data:clear', (_e, o: ClearOptions) => clearData(ses, o))
+
+  ipcMain.handle('app:about', () => ({
+    version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+    node: process.versions.node
+  }))
+  ipcMain.handle('app:check-update', async () => {
+    if (!app.isPackaged) return 'A verificação só funciona no app instalado.'
+    try {
+      const r = await autoUpdater.checkForUpdates()
+      return r?.isUpdateAvailable ? `Nova versão ${r.updateInfo.version} encontrada: baixando…` : 'Você está na versão mais recente.'
+    } catch {
+      return 'Não foi possível verificar agora.'
+    }
+  })
 
   ipcMain.on('theme:menu', (_e, x: number, y: number) => {
     const cur = getSettings().theme
@@ -198,30 +308,32 @@ function registerIpc(ses: Electron.Session): void {
       .popup({ window: win, x, y })
   })
   ipcMain.on('app:menu', (_e, x: number, y: number) => {
-    Menu.buildFromTemplate([
-      { label: 'Nova aba', click: () => tabs.createTab(getSettings().homepage) },
-      { type: 'separator' },
-      { label: 'Importar tudo do Chrome', click: () => {
-          const ps = listChromeProfiles()
-          const n = importChrome(ps.map((p) => p.dir))
-          void dialog.showMessageBox(win, { message: `${n} item(ns) importado(s) de ${ps.length} perfil(is) do Chrome.` })
-        } },
-      { label: 'Importar favoritos do Chrome…', click: () => openManager('bookmarks') },
-      { label: 'Extensões…', click: () => openManager('extensions') },
-      { label: 'Configurações…', click: () => openManager('settings') },
-      { type: 'separator' },
-      { label: 'Ferramentas de desenvolvedor', click: () => tabs.devtools() },
-      { label: 'Sobre / Créditos', click: () => {
-          void dialog.showMessageBox(win, {
-            type: 'info', title: 'Sobre', message: 'WD - Navegador',
-            detail: `Versão ${app.getVersion()}
-
-Feito por Weslei Domingues - 2026`
-          })
-        } },
-      { label: 'Sair', click: () => app.quit() }
-    ]).popup({ window: win, x, y })
+    Menu.buildFromTemplate(appMenuTemplate()).popup({ window: win, x, y })
   })
+}
+
+const sessionFile = (): string => join(app.getPath('userData'), 'session.json')
+let sessionTimer: NodeJS.Timeout | null = null
+function saveSession(): void {
+  if (sessionTimer) return
+  sessionTimer = setTimeout(() => {
+    sessionTimer = null
+    try { writeFileSync(sessionFile(), JSON.stringify(tabs.sessionTabs())) } catch { /* ignora */ }
+  }, 2000)
+}
+
+function startupTabs(): void {
+  const s = getSettings()
+  if (s.startup === 'restore') {
+    try {
+      const list: SessionTab[] = JSON.parse(readFileSync(sessionFile(), 'utf8'))
+      if (list.length) return tabs.restoreTabs(list)
+    } catch { /* sem sessão anterior */ }
+  } else if (s.startup === 'custom') {
+    const urls = s.startupUrls.split('\n').map((u) => u.trim()).filter(Boolean)
+    if (urls.length) return tabs.restoreTabs(urls.map((url) => ({ url: url.includes('://') ? url : 'https://' + url, title: '' })))
+  }
+  tabs.createTab(s.homepage)
 }
 
 async function main(): Promise<void> {
@@ -230,12 +342,13 @@ async function main(): Promise<void> {
   nativeTheme.themeSource = getSettings().theme
 
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WD - Navegador', icon: join(__dirname, '../../build/icon.png'),
-    backgroundColor: '#1e1f22', autoHideMenuBar: true,
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WD - Navegador', icon: ICON,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1f3a' : '#fdfcf8', autoHideMenuBar: true,
     titleBarStyle: 'hidden', titleBarOverlay: overlay(),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
   win.setMenuBarVisibility(false)
+  nativeTheme.on('updated', () => { if (!win.isDestroyed()) win.setTitleBarOverlay(overlay()) })
 
   const extensions = new ElectronChromeExtensions({
     session: ses,
@@ -252,7 +365,11 @@ async function main(): Promise<void> {
     selectTab: (wc) => extensions.selectTab(wc)
   })
   tabs.onChange(pushState)
+  tabs.onChange(saveSession)
   onBookmarksChange(() => win.webContents.send('bookmarks:changed', getBookmarks()))
+  initDownloads(ses, win, () => {
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('downloads:changed', listDownloads())
+  })
   registerIpc(ses)
   buildAppMenu()
 
@@ -265,7 +382,7 @@ async function main(): Promise<void> {
     new Promise((r) => setTimeout(r, 8000))
   ])
 
-  tabs.createTab(getSettings().homepage)
+  startupTabs()
 
   // Barra de memória + suspensão automática
   setInterval(() => {
@@ -297,6 +414,8 @@ async function main(): Promise<void> {
     setInterval(check, 4 * 60 * 60_000)
   }
 
+  if (process.env.WD_OPEN_MANAGER) openManager(process.env.WD_OPEN_MANAGER)
+
   // Primeira abertura: oferece importar favoritos do Chrome
   if (!getSettings().importPrompted) {
     updateSettings({ importPrompted: true })
@@ -304,9 +423,19 @@ async function main(): Promise<void> {
   }
 }
 
+let cleaned = false
+app.on('before-quit', (e) => {
+  flushHistory()
+  if (tabs) try { writeFileSync(sessionFile(), JSON.stringify(tabs.sessionTabs())) } catch { /* ignora */ }
+  if (getSettings().clearOnExit && !cleaned) {
+    e.preventDefault()
+    cleaned = true
+    void clearData(session.defaultSession, { history: true, cookies: true, cache: true, downloads: true })
+      .finally(() => app.quit())
+  }
+})
 app.on('second-instance', () => {
   if (win) { if (win.isMinimized()) win.restore(); win.focus() }
 })
 app.on('window-all-closed', () => app.quit())
 void main()
-void CHROME_HEIGHT

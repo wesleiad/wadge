@@ -1,9 +1,11 @@
 import { BrowserWindow, WebContents, WebContentsView, Menu, clipboard } from 'electron'
 import { getSettings, onSettingsChange } from './settings'
 import { resetBlocked } from './adblock'
-import type { TabInfo, TabsState } from '../shared/types'
+import { recordVisit, updateTitle } from './history'
+import type { TabInfo, TabsState, SessionTab } from '../shared/types'
 
-export const CHROME_HEIGHT = 114 // abas 40 + barra 44 + favoritos 30
+/** abas 40 + barra 44 (+ favoritos 30 quando visível) */
+export const chromeHeight = (): number => (getSettings().showBookmarksBar ? 114 : 84)
 
 interface Tab {
   id: number
@@ -47,6 +49,7 @@ export class TabManager {
     this.vaultUrl = getSettings().vaultUrl
     onSettingsChange((st) => {
       // só reage se a URL do cofre mudou (não em tema/adblock etc.)
+      this.layout()
       if (st.vaultUrl === this.vaultUrl) return
       this.vaultUrl = st.vaultUrl
       if (this.vaultView) this.loadVault()
@@ -95,6 +98,7 @@ export class TabManager {
 
     wc.on('page-title-updated', (_e, title) => {
       tab.title = title
+      updateTitle(wc.getURL(), title)
       this.emit()
     })
     wc.on('page-favicon-updated', (_e, favs) => {
@@ -112,6 +116,7 @@ export class TabManager {
     })
     wc.on('did-navigate', (_e, url) => {
       tab.url = url
+      recordVisit(url, wc.getTitle())
       this.emit()
     })
     wc.on('did-navigate-in-page', (_e, url, isMain) => {
@@ -234,6 +239,37 @@ export class TabManager {
     this.activate(this.tabs[(i + dir + this.tabs.length) % this.tabs.length].id)
   }
 
+  // ---------- sessão, zoom, impressão ----------
+  sessionTabs(): SessionTab[] {
+    return this.tabs
+      .filter((t) => /^(https?|file):/i.test(t.url))
+      .map((t) => ({ url: t.url, title: t.title }))
+  }
+
+  /** Abre abas já suspensas (sem processo) — a primeira fica ativa. */
+  restoreTabs(list: SessionTab[]): void {
+    list.forEach((st, i) => {
+      if (i === 0) {
+        this.createTab(st.url, true)
+        return
+      }
+      this.tabs.push({
+        id: this.nextId++, url: st.url, title: st.title, favicon: '', loading: false,
+        view: null, lastActive: Date.now()
+      })
+    })
+    this.emit()
+  }
+
+  zoom(delta: number): void {
+    const wc = this.active?.view?.webContents
+    if (!wc) return
+    wc.setZoomLevel(delta === 0 ? 0 : Math.max(-4, Math.min(6, wc.getZoomLevel() + delta)))
+  }
+  print(): void {
+    this.active?.view?.webContents.print()
+  }
+
   // ---------- Tab Suspender ----------
   suspend(id: number): boolean {
     const tab = this.tabs.find((t) => t.id === id)
@@ -354,10 +390,10 @@ export class TabManager {
   private layout(): void {
     const [w, h] = this.win.getContentSize()
     const sb = this.vaultWidth(w)
-    const height = Math.max(0, h - CHROME_HEIGHT)
+    const height = Math.max(0, h - chromeHeight())
     const tab = this.active
-    if (tab?.view) tab.view.setBounds({ x: 0, y: CHROME_HEIGHT, width: Math.max(0, w - sb), height })
+    if (tab?.view) tab.view.setBounds({ x: 0, y: chromeHeight(), width: Math.max(0, w - sb), height })
     if (this.vaultView && this.vaultOpen)
-      this.vaultView.setBounds({ x: w - sb, y: CHROME_HEIGHT, width: sb, height })
+      this.vaultView.setBounds({ x: w - sb, y: chromeHeight(), width: sb, height })
   }
 }

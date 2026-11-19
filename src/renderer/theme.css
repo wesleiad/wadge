@@ -1,0 +1,22 @@
+/* Estilo line-art: traço fino, papel quente, tinta = currentColor, um acento laranja. */
+:root {
+  --paper: #fdfcf8; --bar: #ece8da; --paper2: #f6f3ea; --ink: #1c1c1c; --muted: #6b675c;
+  --line: #d6d0bd; --hover: #e4dfcd; --accent: #e8743b; --accent-soft: #fbe3d3;
+  --pen: 1.4px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1b1f3a; --bar: #151833; --paper2: #20254a; --ink: #e8e4d8; --muted: #9aa0c4;
+    --line: #343a66; --hover: #2a3060; --accent: #ff9a5c; --accent-soft: #3a2f4a;
+  }
+}
+* { box-sizing: border-box; }
+.ic { fill: none; stroke: currentColor; stroke-width: var(--pen); stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ic.dot { stroke-width: 2.6; }
+.ic path { stroke-dasharray: 1; stroke-dashoffset: 0; }
+/* "caneta desenhando": só ao passar o mouse / clicar (custo zero em repouso) */
+button:hover .ic path, .navitem:hover .ic path, .navitem.active .ic path { animation: draw .42s ease-out; }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

@@ -24,7 +24,7 @@ npm run dist         # saída: release/WD-Navegador-Setup-<versão>.exe
 O ícone fica em `build/icon.ico` e `build/icon.png`.
 
 ## Atalhos
-Ctrl+T nova aba · Ctrl+W fechar · Ctrl+L endereço · Ctrl+R/F5 recarregar · Ctrl+Tab alternar · Alt+←/→ · Ctrl+D favoritar · F12 DevTools
+Ctrl+T nova aba · Ctrl+H histórico · Ctrl+J downloads · Ctrl+P imprimir · Ctrl +/- zoom · Ctrl+W fechar · Ctrl+L endereço · Ctrl+R/F5 recarregar · Ctrl+Tab alternar · Alt+←/→ · Ctrl+D favoritar · F12 DevTools
 
 ## Limitações conhecidas
 - Instalação direta pela Chrome Web Store não é suportada (carregue a pasta descompactada); extensões MV3 têm suporte parcial.

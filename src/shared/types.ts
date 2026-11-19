@@ -39,6 +39,13 @@ export interface Settings {
   adblockPausedSites: string[]
   importPrompted: boolean
   memLimitMB: number
+  showBookmarksBar: boolean
+  startup: 'newtab' | 'restore' | 'custom'
+  startupUrls: string
+  downloadPath: string
+  askDownload: boolean
+  clearOnExit: boolean
+  disabledExtensions: string[]
   schema: number
   theme: 'system' | 'light' | 'dark'
 }
@@ -50,8 +57,41 @@ export interface ChromeProfile {
 }
 
 export interface ExtensionInfo {
-  id: string
+  key: string // nome da pasta em extensions/
+  id: string // id carregado (vazio se desativada)
   name: string
   version: string
+  description: string
   path: string
+  enabled: boolean
+  icon: string // data URL
+}
+
+export interface HistoryEntry {
+  url: string
+  title: string
+  time: number
+}
+
+export interface DownloadInfo {
+  id: number
+  name: string
+  url: string
+  path: string
+  state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'
+  received: number
+  total: number
+  time: number
+}
+
+export interface ClearOptions {
+  history: boolean
+  cookies: boolean
+  cache: boolean
+  downloads: boolean
+}
+
+export interface SessionTab {
+  url: string
+  title: string
 }

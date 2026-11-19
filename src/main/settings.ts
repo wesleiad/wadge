@@ -13,6 +13,13 @@ const defaults: Settings = {
   importPrompted: false,
   theme: 'system',
   memLimitMB: 1200,
+  showBookmarksBar: true,
+  startup: 'newtab',
+  startupUrls: '',
+  downloadPath: '',
+  askDownload: false,
+  clearOnExit: false,
+  disabledExtensions: [],
   schema: 2
 }
 
@@ -26,7 +33,7 @@ export function getSettings(): Settings {
       const c: Settings = { ...defaults, ...JSON.parse(readFileSync(file(), 'utf8')) }
       cache = c.schema < 2 ? { ...c, suspendMinutes: 3, schema: 2 } : c // novo padrão: 3 min
     } catch {
-      cache = { ...defaults }
+      cache = { ...defaults, suspendMinutes: 3 }
     }
   }
   return cache!
