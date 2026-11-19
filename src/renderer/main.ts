@@ -20,32 +20,57 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e
 }
 
+// Abas são reaproveitadas por id (sem recriar o DOM): evita o "piscar" e repetir as animações.
+interface TabEl { root: HTMLElement; fav: HTMLElement; title: HTMLElement; favUrl: string; ph: boolean }
+const tabEls = new Map<number, TabEl>()
+const plus = el('button')
+plus.id = 'newtab'
+plus.title = 'Nova aba (Ctrl+T)'
+plus.innerHTML = icon('plus', 16)
+plus.onclick = () => api.newTab()
+
+function makeTab(id: number): TabEl {
+  const root = el('div', 'tab')
+  const fav = el('span', 'ph')
+  const title = el('span', 'title')
+  const x = el('button', 'x')
+  x.innerHTML = icon('close', 14)
+  x.onclick = (e) => { e.stopPropagation(); api.closeTab(id) }
+  root.append(fav, title, x)
+  root.onclick = () => api.activate(id)
+  root.onauxclick = (e) => { if (e.button === 1) api.closeTab(id) }
+  return { root, fav, title, favUrl: '', ph: true }
+}
+
 function renderTabs(): void {
-  tabsEl.replaceChildren()
+  const live = new Set(state.tabs.map((t) => t.id))
+  for (const [id, te] of tabEls) if (!live.has(id)) { te.root.remove(); tabEls.delete(id) }
+  let prev: Element | null = null
   for (const t of state.tabs) {
-    const tab = el('div', 'tab' + (t.active ? ' active' : '') + (t.suspended ? ' suspended' : '') + (t.loading ? ' loading' : ''))
-    tab.title = t.suspended ? `${t.title} (suspensa)` : t.title
-    if (t.favicon && !t.loading) {
+    let te = tabEls.get(t.id)
+    if (!te) { te = makeTab(t.id); tabEls.set(t.id, te) }
+    const r = te.root
+    r.classList.toggle('active', t.active)
+    r.classList.toggle('suspended', t.suspended)
+    r.classList.toggle('loading', t.loading)
+    const tip = t.suspended ? `${t.title} (suspensa)` : t.title
+    if (r.title !== tip) r.title = tip
+    if (te.title.textContent !== t.title) te.title.textContent = t.title
+    const wantImg = !!t.favicon && !t.loading
+    if (wantImg && (te.ph || te.favUrl !== t.favicon)) {
       const img = el('img', 'fav')
       img.src = t.favicon
-      img.onerror = () => img.replaceWith(el('span', 'ph'))
-      tab.append(img)
-    } else tab.append(el('span', 'ph'))
-    tab.append(el('span', 'title', t.title))
-    const x = el('button', 'x')
-    x.innerHTML = icon('close', 14)
-    x.onclick = (e) => { e.stopPropagation(); api.closeTab(t.id) }
-    tab.append(x)
-    tab.onclick = () => api.activate(t.id)
-    tab.onauxclick = (e) => { if (e.button === 1) api.closeTab(t.id) }
-    tabsEl.append(tab)
+      img.onerror = () => { const ph = el('span', 'ph'); img.replaceWith(ph); te!.fav = ph; te!.ph = true; te!.favUrl = '' }
+      te.fav.replaceWith(img); te.fav = img; te.ph = false; te.favUrl = t.favicon
+    } else if (!wantImg && !te.ph && t.loading) {
+      const ph = el('span', 'ph'); te.fav.replaceWith(ph); te.fav = ph; te.ph = true; te.favUrl = ''
+    }
+    // posição correta (só move se necessário)
+    const expected: Element | null = prev ? prev.nextElementSibling : tabsEl.firstElementChild
+    if (expected !== r) tabsEl.insertBefore(r, expected)
+    prev = r
   }
-  const plus = el('button')
-  plus.id = 'newtab'
-  plus.title = 'Nova aba (Ctrl+T)'
-  plus.innerHTML = icon('plus', 16)
-  plus.onclick = () => api.newTab()
-  tabsEl.append(plus)
+  if (plus.parentElement !== tabsEl || tabsEl.lastElementChild !== plus) tabsEl.append(plus)
 
   const a = state.tabs.find((t) => t.active)
   $<HTMLButtonElement>('#back').disabled = !a?.canGoBack
