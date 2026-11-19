@@ -24,3 +24,4 @@ publish:
   provider: github
   owner: wesleiad
   repo: wadge
+  releaseType: release

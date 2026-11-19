@@ -34,4 +34,4 @@ Ctrl+T nova aba · Ctrl+W fechar · Ctrl+L endereço · Ctrl+R/F5 recarregar · 
 ## Atualização automática
 O app instalado verifica o GitHub Releases ao abrir (e a cada 4 h), baixa a nova versão e pergunta se quer reiniciar.
 Para publicar uma versão: aumente `version` no `package.json`, faça `$env:GH_TOKEN = (gh auth token)` e rode `npm run release`
-(cria a Release com o instalador e o `latest.yml`). Requer repositório público.
+(cria e publica a Release com o instalador e o `latest.yml`). Requer repositório público.
