@@ -23,5 +23,5 @@ nsis:
 publish:
   provider: github
   owner: wesleiad
-  repo: wadge
+  repo: wd-navegador
   releaseType: release
