@@ -10,7 +10,8 @@ const defaults: Settings = {
   vaultUrl: '',
   adblockEnabled: true,
   adblockPausedSites: [],
-  importPrompted: false
+  importPrompted: false,
+  theme: 'system'
 }
 
 let cache: Settings | null = null

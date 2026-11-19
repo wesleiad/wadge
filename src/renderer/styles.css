@@ -8,7 +8,10 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   font: 13px "Segoe UI", system-ui, sans-serif; user-select: none; overflow: hidden; }
 
-#tabs { height: 40px; display: flex; align-items: flex-end; gap: 2px; padding: 6px 6px 0; }
+#titlebar { height: 40px; display: flex; align-items: flex-end; padding: 0 150px 0 12px; -webkit-app-region: drag; }
+#logo { width: 22px; height: 22px; border-radius: 6px; align-self: center; margin-right: 10px; flex: none; }
+#tabs { flex: 1; min-width: 0; height: 40px; display: flex; align-items: flex-end; gap: 2px; padding: 6px 6px 0 0; }
+.tab, #tabs button, #toolbar, #bookmarks { -webkit-app-region: no-drag; }
 .tab { display: flex; align-items: center; gap: 6px; width: 200px; min-width: 60px; flex: 0 1 200px; height: 34px;
   padding: 0 8px; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); cursor: default; }
 .tab:hover { background: var(--bg3); }

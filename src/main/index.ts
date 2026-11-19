@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell, session, type MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, nativeTheme, Menu, ipcMain, dialog, shell, session, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
 import { TabManager, CHROME_HEIGHT } from './tabs'
@@ -58,6 +58,16 @@ function adblockStatus(): AdblockStatus {
     host,
     blocked: t?.view ? getBlocked(t.view.webContents.id) : 0
   }
+}
+
+const overlay = (): { color: string; symbolColor: string; height: number } =>
+  nativeTheme.shouldUseDarkColors
+    ? { color: '#1e1f22', symbolColor: '#e3e5e8', height: 40 }
+    : { color: '#e9eaee', symbolColor: '#1d1e22', height: 40 }
+
+function applyTheme(): void {
+  nativeTheme.themeSource = getSettings().theme
+  if (win && !win.isDestroyed()) win.setTitleBarOverlay(overlay())
 }
 
 function pushState(): void {
@@ -166,6 +176,15 @@ function registerIpc(ses: Electron.Session): void {
   ipcMain.handle('ext:remove', (_e, id: string) => { removeExtension(ses, id) })
   ipcMain.on('ext:open-folder', () => { void shell.openPath(extensionsDir()) })
 
+  ipcMain.on('theme:menu', (_e, x: number, y: number) => {
+    const cur = getSettings().theme
+    const item = (label: string, theme: Settings['theme']): MenuItemConstructorOptions => ({
+      label, type: 'radio', checked: cur === theme,
+      click: () => { updateSettings({ theme }); applyTheme() }
+    })
+    Menu.buildFromTemplate([item('Claro', 'light'), item('Escuro', 'dark'), item('Sistema', 'system')])
+      .popup({ window: win, x, y })
+  })
   ipcMain.on('app:menu', (_e, x: number, y: number) => {
     Menu.buildFromTemplate([
       { label: 'Nova aba', click: () => tabs.createTab(getSettings().homepage) },
@@ -188,10 +207,12 @@ function registerIpc(ses: Electron.Session): void {
 async function main(): Promise<void> {
   await app.whenReady()
   const ses = session.defaultSession
+  nativeTheme.themeSource = getSettings().theme
 
   win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WADGE', icon: join(__dirname, '../../build/icon.png'),
     backgroundColor: '#1e1f22', autoHideMenuBar: true,
+    titleBarStyle: 'hidden', titleBarOverlay: overlay(),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
   win.setMenuBarVisibility(false)

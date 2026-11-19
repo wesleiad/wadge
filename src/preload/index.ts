@@ -30,6 +30,7 @@ const api = {
   toggleVault: () => ipcRenderer.send('vault:toggle'),
   adblockStatus: () => ipcRenderer.invoke('adblock:status'),
   adblockMenu: (x: number, y: number) => ipcRenderer.send('adblock:menu', x, y),
+  themeMenu: (x: number, y: number) => ipcRenderer.send('theme:menu', x, y),
   appMenu: (x: number, y: number) => ipcRenderer.send('app:menu', x, y),
 
   getBookmarks: () => ipcRenderer.invoke('bookmarks:get'),

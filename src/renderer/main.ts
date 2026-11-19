@@ -84,6 +84,10 @@ $('#suspend').onclick = async () => {
   const n = await api.suspendInactive()
   $('#suspend').title = `${n} aba(s) suspensa(s) agora`
 }
+$('#theme').onclick = (e) => {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  api.themeMenu(Math.round(r.right - 140), Math.round(r.bottom))
+}
 $('#menu').onclick = (e) => {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
   api.appMenu(Math.round(r.right - 180), Math.round(r.bottom))

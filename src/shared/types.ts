@@ -38,6 +38,7 @@ export interface Settings {
   adblockEnabled: boolean
   adblockPausedSites: string[]
   importPrompted: boolean
+  theme: 'system' | 'light' | 'dark'
 }
 
 export interface ChromeProfile {
