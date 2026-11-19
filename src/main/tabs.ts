@@ -39,6 +39,8 @@ export class TabManager {
   private vaultView: WebContentsView | null = null
   vaultOpen = false
   private vaultUrl = ''
+  /** Quando definido (extensão do Bitwarden detectada), substitui a URL do cofre no painel. */
+  private vaultOverride: { url: string; label: string } | null = null
   private changeListeners: Array<() => void> = []
 
   constructor(
@@ -331,25 +333,39 @@ export class TabManager {
     this.vaultView = null
   }
 
-  private vaultPage(title: string, msg: string, retry = false): string {
+  /** Extensão do Bitwarden carregada e ativa tem prioridade sobre o site do cofre. */
+  setVaultOverride(ov: { url: string; label: string } | null): void {
+    const changed = (this.vaultOverride?.url ?? '') !== (ov?.url ?? '')
+    this.vaultOverride = ov
+    if (changed && this.vaultView) this.loadVault()
+  }
+
+  private vaultTarget(): { url: string; label: string } {
+    return this.vaultOverride ?? { url: this.vaultUrl, label: 'cofre' }
+  }
+
+  private vaultPage(title: string, msg: string, retry = false, url = this.vaultTarget().url): string {
     const html =
       '<meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
       ':root{color-scheme:light dark}body{font:14px Segoe UI,sans-serif;margin:0;padding:20px;' +
       'background:Canvas;color:CanvasText;word-wrap:break-word}h3{margin:0 0 10px}' +
       'a{color:#5865f2}code{opacity:.8}</style><body><h3>' + title + '</h3><p>' + msg + '</p>' +
-      (retry ? '<p><a href="' + this.vaultUrl + '">Tentar novamente</a></p>' : '') + '</body>'
+      (retry ? '<p><a href="' + url + '">Tentar novamente</a></p>' : '') + '</body>'
     return 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
   }
 
   private loadVault(): void {
     const wc = this.vaultView?.webContents
     if (!wc) return
-    if (!this.vaultUrl) {
+    const t = this.vaultTarget()
+    if (!t.url) {
       void wc.loadURL(this.vaultPage('Vault',
-        'Configure a URL do cofre (Vaultwarden/Bitwarden) em <b>Menu ⋮ → Configurações</b>.'))
+        'Configure a URL do cofre (Vaultwarden/Bitwarden) em <b>Menu ⋮ → Configurações</b>, ' +
+        'ou carregue a extensão do Bitwarden em <b>Extensões</b> para usá-la aqui direto.'))
       return
     }
-    void wc.loadURL(normalizeInput(this.vaultUrl)).catch(() => undefined)
+    const url = this.vaultOverride ? t.url : normalizeInput(t.url)
+    void wc.loadURL(url).catch(() => undefined)
   }
 
   toggleVault(): void {
@@ -364,9 +380,10 @@ export class TabManager {
         })
         wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
           if (!isMain || code === -3 || url.startsWith('data:')) return
+          const t = this.vaultTarget()
           void wc.loadURL(this.vaultPage('Não foi possível abrir o cofre',
-            `Endereço: <code>${this.vaultUrl}</code><br>Erro: ${desc} (${code}).<br>` +
-            'Verifique a rede/VPN e a URL em Configurações.', true))
+            `Endereço: <code>${t.url}</code><br>Erro: ${desc} (${code}).<br>` +
+            'Verifique a rede/VPN e o endereço em Configurações.', true))
         })
         this.ext.addTab(wc)
         this.loadVault()

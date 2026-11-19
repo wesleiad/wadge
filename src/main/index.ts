@@ -11,7 +11,8 @@ import {
   listChromeProfiles, importChrome
 } from './bookmarks'
 import {
-  loadAllExtensions, listExtensions, addExtension, removeExtension, setExtensionEnabled, extensionsDir
+  loadAllExtensions, listExtensions, addExtension, removeExtension, setExtensionEnabled, extensionsDir,
+  listChromeExtensions, importChromeExtensions
 } from './extensions'
 import { getHistory, removeHistory, clearHistory, flushHistory } from './history'
 import {
@@ -79,6 +80,18 @@ const overlay = (): { color: string; symbolColor: string; height: number } =>
 function applyTheme(): void {
   nativeTheme.themeSource = getSettings().theme
   if (win && !win.isDestroyed()) win.setTitleBarOverlay(overlay())
+}
+
+/** Prioriza a extensão real do Bitwarden (se carregada e ativa) sobre o site do cofre no painel Vault. */
+function recomputeVault(): void {
+  if (!tabs) return
+  const s = getSettings()
+  if (s.vaultMode === 'web') {
+    tabs.setVaultOverride(null)
+    return
+  }
+  const bw = listExtensions(session.defaultSession).find((e) => e.enabled && e.popup && /bitwarden/i.test(e.name))
+  tabs.setVaultOverride(bw ? { url: `chrome-extension://${bw.id}/${bw.popup}`, label: bw.name } : null)
 }
 
 function pushState(): void {
@@ -251,6 +264,7 @@ function registerIpc(ses: Electron.Session): void {
     const s = updateSettings(patch)
     if ('theme' in patch) applyTheme()
     applyAdblock()
+    recomputeVault()
     pushState()
     if (!win.isDestroyed()) win.webContents.send('settings:changed', s)
     return s
@@ -267,12 +281,26 @@ function registerIpc(ses: Electron.Session): void {
       title: 'Selecione a pasta da extensão (descompactada)', properties: ['openDirectory']
     })
     if (r.canceled || !r.filePaths[0]) return null
-    try { return { ok: await addExtension(ses, r.filePaths[0]) } }
-    catch (e) { return { error: (e as Error).message } }
+    try {
+      const ok = await addExtension(ses, r.filePaths[0])
+      recomputeVault()
+      return { ok }
+    } catch (e) { return { error: (e as Error).message } }
   })
-  ipcMain.handle('ext:toggle', (_e, key: string, on: boolean) => setExtensionEnabled(ses, key, on))
-  ipcMain.handle('ext:remove', (_e, key: string) => { removeExtension(ses, key) })
+  ipcMain.handle('ext:toggle', async (_e, key: string, on: boolean) => {
+    await setExtensionEnabled(ses, key, on)
+    recomputeVault()
+  })
+  ipcMain.handle('ext:remove', (_e, key: string) => { removeExtension(ses, key); recomputeVault() })
   ipcMain.on('ext:open-folder', () => { void shell.openPath(extensionsDir()) })
+
+  // extensões já instaladas no Google Chrome (ex.: Bitwarden), prontas para importar
+  ipcMain.handle('chromeext:list', () => listChromeExtensions())
+  ipcMain.handle('chromeext:import', async (_e, ids: string[]) => {
+    const n = await importChromeExtensions(ses, ids)
+    recomputeVault()
+    return n
+  })
 
   // histórico, downloads, dados
   ipcMain.handle('history:get', (_e, q: string) => getHistory(q))
@@ -381,6 +409,7 @@ async function main(): Promise<void> {
     Promise.all([initAdblock(ses), loadAllExtensions(ses)]),
     new Promise((r) => setTimeout(r, 8000))
   ])
+  recomputeVault()
 
   startupTabs()
 

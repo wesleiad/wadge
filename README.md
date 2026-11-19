@@ -7,7 +7,7 @@ Navegador desktop leve para Windows 10/11 (Electron + TypeScript + Vite). Sem lo
 - **AdBlock nativo** (`@ghostery/adblocker-electron`, camada de rede): botão 🛡 liga/pausa globalmente ou por site.
 - **Importador de favoritos do Chrome**: lê `%LOCALAPPDATA%\Google\Chrome\User Data\` (Default, Profile N). Oferece na primeira abertura; também em Menu ⋮ → Importar favoritos.
 - **Extensões do Chrome** (`electron-chrome-extensions`): pasta `extensions/` em `%APPDATA%\WADGE`; ícones e popups na barra. Menu ⋮ → Extensões para carregar pastas descompactadas.
-- **Vault**: painel lateral retrátil que abre a URL do cofre (Vaultwarden/Bitwarden) definida em Configurações. Para a extensão do Bitwarden, carregue-a em Extensões.
+- **Vault**: painel lateral retrátil. Em "Modo automático" (padrão), usa a extensão real do Bitwarden quando carregada e ativa — com seu login e preenchimento automático de verdade; senão, abre a URL do cofre (Vaultwarden/Bitwarden) definida em Configurações. A extensão pode ser importada direto do Chrome já instalado (Configurações → Extensões → "Importar do Chrome instalado") ou carregada manualmente.
 - **Instalador NSIS** x64 via electron-builder.
 
 ## Desenvolvimento

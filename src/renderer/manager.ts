@@ -217,11 +217,23 @@ async function pageDownloads(): Promise<HTMLElement> {
   )
 }
 
-function pageVault(): HTMLElement {
+async function pageVault(): Promise<HTMLElement> {
+  const list: ExtensionInfo[] = await api.listExtensions()
+  const bw = list.find((e) => e.enabled && e.popup && /bitwarden/i.test(e.name))
+  const status = bw
+    ? h('div', 'd', `Extensão "${bw.name}" detectada e ativa — o botão Vault abre ela direto, com seu login e preenchimento automático reais.`)
+    : h('div', 'd', 'Nenhuma extensão do Bitwarden carregada ainda. Importe-a na página Extensões (a partir do Chrome instalado, ou carregando a pasta manualmente). Até lá, o botão Vault abre o endereço do cofre abaixo.')
+  const sel = h('select')
+  for (const [v, l] of [['auto', 'Automático — usa a extensão do Bitwarden quando disponível'], ['web', 'Sempre usar o endereço do cofre (site)']]) {
+    const o = h('option'); o.value = v; o.textContent = l; sel.append(o)
+  }
+  sel.value = S.vaultMode
+  sel.onchange = () => void save({ vaultMode: sel.value as Settings['vaultMode'] })
   return section('Cofre de senhas (Vault)', 'key', card(
-    row('Endereço do cofre', 'Vaultwarden/Bitwarden da empresa. Abre no painel lateral pelo botão Vault.',
-      textInput('vaultUrl', 'https://vault.suaempresa.com.br'), 'col'),
-    row('Extensão do Bitwarden', 'Para preenchimento automático, carregue a extensão web do Bitwarden na página Extensões.')
+    row('Como abrir', '', sel, 'col'),
+    h('div', 'row col', status),
+    row('Endereço do cofre (site)', 'Vaultwarden/Bitwarden da empresa. Usado quando a extensão não está disponível.',
+      textInput('vaultUrl', 'https://vault.suaempresa.com.br'), 'col')
   ))
 }
 
@@ -261,16 +273,47 @@ async function pageExtensions(): Promise<HTMLElement> {
     for (const e of list) {
       const ic = e.icon ? Object.assign(h('img'), { src: e.icon, alt: '' }) : h('div', 'noicon')
       if (!e.icon) ic.innerHTML = icon('extensions', 22)
+      const isVault = e.enabled && e.popup && /bitwarden/i.test(e.name)
       const rm = btn('Remover', 'danger', 'trash', async () => { await api.removeExtension(e.key); void draw() })
       grid.append(h('div', 'ext' + (e.enabled ? '' : ' off'),
         h('div', 'head', ic, h('div', '', h('div', 'name', e.name), h('div', 'ver', e.version ? 'v' + e.version : ''))),
         h('div', 'desc', e.description || 'Sem descrição'),
+        isVault ? h('div', 'd', '🔑 Em uso no botão Vault') : null,
         h('div', 'foot', rm, toggle(e.enabled, async (v) => { await api.toggleExtension(e.key, v); void draw() }))))
     }
     wrap.replaceChildren(grid)
   }
   await draw()
-  const add = btn('Carregar sem compactação', 'primary', 'plus', async () => {
+
+  // Importar extensões já instaladas no Chrome (ex.: Bitwarden), sem precisar baixar nada de novo
+  const chromeWrap = h('div')
+  const chromeMsg = h('span', 'toast')
+  const drawChrome = async (): Promise<void> => {
+    const entries = await api.listChromeExtensions()
+    if (!entries.length) {
+      chromeWrap.replaceChildren(h('div', 'd', 'Nenhuma extensão encontrada no Chrome instalado neste computador.'))
+      return
+    }
+    const list = h('div', 'row col checks')
+    const boxes = entries.map((e) => {
+      const i = h('input'); i.type = 'checkbox'; i.value = e.id
+      i.checked = /bitwarden/i.test(e.name)
+      list.append(h('label', '', i, `${e.name}${e.version ? ' v' + e.version : ''}`))
+      return i
+    })
+    const imp = btn('Importar selecionadas', 'primary', 'plus', async () => {
+      const ids = boxes.filter((b) => b.checked).map((b) => b.value)
+      if (!ids.length) return
+      const n = await api.importChromeExtensions(ids)
+      chromeMsg.textContent = `${n} extensão(ões) importada(s) ✓`
+      void draw()
+      void drawChrome()
+    })
+    chromeWrap.replaceChildren(list, h('div', 'row', imp, chromeMsg))
+  }
+  await drawChrome()
+
+  const add = btn('Carregar sem compactação', '', 'plus', async () => {
     const r = await api.addExtension()
     if (!r) return
     msg.textContent = r.error ? `Erro: ${r.error}` : `Carregada: ${r.ok!.name}`
@@ -278,9 +321,13 @@ async function pageExtensions(): Promise<HTMLElement> {
   })
   const open = btn('Abrir pasta de extensões', '', 'folder', () => api.openExtensionsFolder())
   return h('div', '',
-    section('Extensões', 'extensions', card(
+    section('Importar do Chrome instalado', 'extensions', card(
+      row('Extensões já instaladas no Google Chrome', 'Copia a extensão (já descompactada pelo próprio Chrome) para o WD e carrega — sem precisar baixar de novo. O Bitwarden, se instalado, já vem marcado.'),
+      chromeWrap)),
+    section('Carregar manualmente', 'extensions', card(
       row('Instalar extensão', 'Selecione a pasta descompactada (um .crx precisa ser extraído antes). Ela é copiada para a pasta de extensões e carregada sempre que o navegador abre.'),
       h('div', 'row', add, open)), msg),
+    section('Extensões instaladas no WD', 'extensions'),
     wrap)
 }
 
@@ -336,7 +383,7 @@ const PAGES: Record<string, Page> = {
   privacy: { label: 'Privacidade e segurança', ic: 'shield', render: pagePrivacy, searchable: true },
   performance: { label: 'Desempenho', ic: 'performance', render: pagePerformance, searchable: true },
   downloads: { label: 'Downloads', ic: 'downloads', render: pageDownloads, searchable: false },
-  vault: { label: 'Cofre de senhas', ic: 'key', render: pageVault, searchable: true },
+  vault: { label: 'Cofre de senhas', ic: 'key', render: pageVault, searchable: false },
   bookmarks: { label: 'Favoritos', ic: 'bookmarks', render: pageBookmarks, searchable: false },
   extensions: { label: 'Extensões', ic: 'extensions', render: pageExtensions, searchable: false },
   history: { label: 'Histórico', ic: 'history', render: pageHistory, searchable: false },

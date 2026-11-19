@@ -20,6 +20,7 @@ const defaults: Settings = {
   askDownload: false,
   clearOnExit: false,
   disabledExtensions: [],
+  vaultMode: 'auto',
   schema: 2
 }
 

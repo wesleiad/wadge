@@ -2,7 +2,8 @@ import { app, type Session } from 'electron'
 import { join, basename } from 'path'
 import { existsSync, mkdirSync, readdirSync, readFileSync, cpSync, rmSync, statSync } from 'fs'
 import { getSettings, updateSettings } from './settings'
-import type { ExtensionInfo } from '../shared/types'
+import { listChromeProfiles } from './bookmarks'
+import type { ChromeExtEntry, ExtensionInfo } from '../shared/types'
 
 export const extensionsDir = (): string => join(app.getPath('userData'), 'extensions')
 
@@ -23,6 +24,13 @@ interface Manifest {
   description?: string
   default_locale?: string
   icons?: Record<string, string>
+  action?: { default_popup?: string }
+  browser_action?: { default_popup?: string }
+}
+
+/** Página do popup (botão da barra) declarada no manifesto — MV3 "action" ou MV2 "browser_action". */
+function manifestPopup(m: Manifest): string {
+  return m.action?.default_popup ?? m.browser_action?.default_popup ?? ''
 }
 
 function readJson(file: string): any {
@@ -105,9 +113,76 @@ export function listExtensions(ses: Session): ExtensionInfo[] {
       description: localized(root, m, m.description, ''),
       path: root,
       enabled: !!live,
-      icon: iconOf(root, m)
+      icon: iconOf(root, m),
+      popup: manifestPopup(m)
     }
   })
+}
+
+// ---------- Extensões já instaladas no Google Chrome ----------
+const CHROME_EXT_ID = /^[a-p]{32}$/
+
+/** Varre %LOCALAPPDATA%\Google\Chrome\User Data\<perfil>\Extensions e lê os manifestos (já vêm descompactados). */
+export function listChromeExtensions(): ChromeExtEntry[] {
+  const root = join(process.env.LOCALAPPDATA ?? '', 'Google', 'Chrome', 'User Data')
+  const out = new Map<string, ChromeExtEntry>()
+  for (const p of listChromeProfiles()) {
+    const extRoot = join(root, p.dir, 'Extensions')
+    let ids: string[] = []
+    try {
+      ids = readdirSync(extRoot).filter((d) => CHROME_EXT_ID.test(d))
+    } catch {
+      continue
+    }
+    for (const id of ids) {
+      if (out.has(id)) continue
+      const idDir = join(extRoot, id)
+      let versions: string[] = []
+      try {
+        versions = readdirSync(idDir).filter((v) => existsSync(join(idDir, v, 'manifest.json'))).sort()
+      } catch {
+        continue
+      }
+      if (!versions.length) continue
+      const vdir = join(idDir, versions[versions.length - 1])
+      const m = readManifest(vdir)
+      const name = localized(vdir, m, m.name, '')
+      if (!name || /^__MSG_/.test(name)) continue // sem nome legível, ignora
+      out.set(id, {
+        id, name, version: m.version ?? '', icon: iconOf(vdir, m),
+        path: vdir, profile: p.dir, popup: manifestPopup(m)
+      })
+    }
+  }
+  // extensões do Bitwarden primeiro, depois ordem alfabética
+  return [...out.values()].sort(
+    (a, b) => Number(/bitwarden/i.test(b.name)) - Number(/bitwarden/i.test(a.name)) || a.name.localeCompare(b.name)
+  )
+}
+
+/** Copia extensões já instaladas no Chrome para a pasta do WD e carrega. Retorna quantas foram importadas. */
+export async function importChromeExtensions(ses: Session, ids: string[]): Promise<number> {
+  const found = listChromeExtensions().filter((e) => ids.includes(e.id))
+  let n = 0
+  for (const e of found) {
+    const safe = e.name.replace(/[\\/:*?"<>|]/g, '').trim() || e.id
+    const key = `${safe}-${e.id.slice(0, 6)}`
+    const dest = join(extensionsDir(), key)
+    if (!existsSync(dest)) cpSync(e.path, dest, { recursive: true })
+    updateSettings({ disabledExtensions: getSettings().disabledExtensions.filter((k) => k !== key) })
+    const root = resolveRoot(dest)
+    if (!root) continue
+    if (!ses.extensions.getAllExtensions().some((x) => x.path === root)) {
+      try {
+        await ses.extensions.loadExtension(root, { allowFileAccess: true })
+      } catch (err) {
+        console.error('Falha ao carregar extensão importada do Chrome', key, err)
+        continue
+      }
+    }
+    n++
+  }
+  return n
 }
 
 export async function addExtension(ses: Session, src: string): Promise<ExtensionInfo> {

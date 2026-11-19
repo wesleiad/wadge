@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { injectBrowserAction } from 'electron-chrome-extensions/browser-action'
-import type { Settings, ClearOptions, ExtensionInfo, HistoryEntry, DownloadInfo } from '../shared/types'
+import type { Settings, ClearOptions, ExtensionInfo, HistoryEntry, DownloadInfo, ChromeExtEntry } from '../shared/types'
 
 // registra <browser-action-list> (ícones/popups das extensões)
 injectBrowserAction()
@@ -53,6 +53,8 @@ const api = {
   toggleExtension: (key: string, on: boolean): Promise<void> => inv('ext:toggle', key, on),
   removeExtension: (key: string): Promise<void> => inv('ext:remove', key),
   openExtensionsFolder: () => ipcRenderer.send('ext:open-folder'),
+  listChromeExtensions: (): Promise<ChromeExtEntry[]> => inv('chromeext:list'),
+  importChromeExtensions: (ids: string[]): Promise<number> => inv('chromeext:import', ids),
 
   getHistory: (q: string): Promise<HistoryEntry[]> => inv('history:get', q),
   removeHistory: (time: number): Promise<void> => inv('history:remove', time),

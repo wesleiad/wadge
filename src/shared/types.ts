@@ -46,6 +46,7 @@ export interface Settings {
   askDownload: boolean
   clearOnExit: boolean
   disabledExtensions: string[]
+  vaultMode: 'auto' | 'web'
   schema: number
   theme: 'system' | 'light' | 'dark'
 }
@@ -65,6 +66,18 @@ export interface ExtensionInfo {
   path: string
   enabled: boolean
   icon: string // data URL
+  popup: string // caminho do popup (default_popup do manifest), vazio se não tiver
+}
+
+/** Extensão encontrada já instalada no Google Chrome, pronta para importar. */
+export interface ChromeExtEntry {
+  id: string
+  name: string
+  version: string
+  icon: string // data URL
+  path: string // pasta da versão, com manifest.json
+  profile: string // perfil do Chrome onde foi encontrada
+  popup: string
 }
 
 export interface HistoryEntry {
