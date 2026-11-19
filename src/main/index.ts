@@ -14,7 +14,18 @@ import {
 } from './extensions'
 import type { AdblockStatus, BookmarkNode, Settings } from '../shared/types'
 
-app.setName('WADGE')
+// ---- Economia de memória (antes do app ficar pronto) ----
+app.commandLine.appendSwitch('enable-low-end-device-mode')
+app.commandLine.appendSwitch('renderer-process-limit', '6')
+app.commandLine.appendSwitch('disk-cache-size', String(100 * 1024 * 1024))
+app.commandLine.appendSwitch('js-flags', '--max-lazy --optimize-for-size')
+app.commandLine.appendSwitch(
+  'disable-features',
+  'MediaRouter,OptimizationHints,Translate,InterestFeedContentSuggestions,AutofillServerCommunication,CalculateNativeWinOcclusion'
+)
+app.setName('WD - Navegador')
+// mantém a pasta de dados antiga (configurações, favoritos) mesmo com o novo nome
+app.setPath('userData', join(app.getPath('appData'), 'WADGE'))
 if (!app.requestSingleInstanceLock()) app.quit()
 
 let win: BrowserWindow
@@ -41,7 +52,7 @@ function openManager(tab: 'settings' | 'extensions' | 'bookmarks'): void {
     return
   }
   manager = new BrowserWindow({
-    width: 780, height: 600, parent: win, title: 'WADGE — Gerenciar', icon: join(__dirname, '../../build/icon.png'),
+    width: 780, height: 600, parent: win, title: 'WD — Gerenciar', icon: join(__dirname, '../../build/icon.png'),
     autoHideMenuBar: true, backgroundColor: '#1e1f22',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
   })
@@ -211,7 +222,7 @@ async function main(): Promise<void> {
   nativeTheme.themeSource = getSettings().theme
 
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WADGE', icon: join(__dirname, '../../build/icon.png'),
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, title: 'WD - Navegador', icon: join(__dirname, '../../build/icon.png'),
     backgroundColor: '#1e1f22', autoHideMenuBar: true,
     titleBarStyle: 'hidden', titleBarOverlay: overlay(),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
@@ -254,8 +265,12 @@ async function main(): Promise<void> {
     if (!win.isDestroyed()) win.webContents.send('memory', Math.round(mb))
   }, 4000)
   setInterval(() => {
-    tabs.suspendInactive(getSettings().suspendMinutes * 60_000)
-  }, 30_000)
+    const s = getSettings()
+    tabs.suspendInactive(s.suspendMinutes * 60_000)
+    // pressão de memória: acima do limite, suspende inativas há mais de 30 s
+    const mb = app.getAppMetrics().reduce((t, m) => t + m.memory.workingSetSize, 0) / 1024
+    if (mb > s.memLimitMB) tabs.suspendInactive(30_000)
+  }, 15_000)
 
   // Atualização automática (GitHub Releases) — só no app instalado
   if (app.isPackaged) {
@@ -265,7 +280,7 @@ async function main(): Promise<void> {
       void dialog
         .showMessageBox(win, {
           type: 'info', buttons: ['Reiniciar agora', 'Depois'], defaultId: 0,
-          message: `WADGE ${info.version} baixado.`, detail: 'Reinicie para concluir a atualização.'
+          message: `WD - Navegador ${info.version} baixado.`, detail: 'Reinicie para concluir a atualização.'
         })
         .then((r) => { if (r.response === 0) autoUpdater.quitAndInstall() })
     })

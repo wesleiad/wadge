@@ -38,6 +38,8 @@ export interface Settings {
   adblockEnabled: boolean
   adblockPausedSites: string[]
   importPrompted: boolean
+  memLimitMB: number
+  schema: number
   theme: 'system' | 'light' | 'dark'
 }
 

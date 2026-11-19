@@ -1,8 +1,8 @@
 {
   "name": "wadge",
-  "productName": "WADGE",
-  "version": "0.1.2",
-  "description": "WADGE - navegador desktop leve e rápido para Windows 10/11",
+  "productName": "WD - Navegador",
+  "version": "0.1.3",
+  "description": "WD - Navegador: desktop leve e rápido para Windows 10/11",
   "main": "./out/main/index.js",
   "author": "TI",
   "license": "GPL-3.0",

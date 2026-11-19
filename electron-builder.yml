@@ -1,5 +1,5 @@
 appId: br.com.wadge.browser
-productName: WADGE
+productName: WD - Navegador
 directories:
   output: release
   buildResources: build
@@ -19,7 +19,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  artifactName: WADGE-Setup-${version}.${ext}
+  artifactName: WD-Navegador-Setup-${version}.${ext}
 publish:
   provider: github
   owner: wesleiad

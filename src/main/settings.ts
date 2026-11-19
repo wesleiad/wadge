@@ -11,7 +11,9 @@ const defaults: Settings = {
   adblockEnabled: true,
   adblockPausedSites: [],
   importPrompted: false,
-  theme: 'system'
+  theme: 'system',
+  memLimitMB: 1200,
+  schema: 2
 }
 
 let cache: Settings | null = null
@@ -21,7 +23,8 @@ const file = (): string => join(app.getPath('userData'), 'settings.json')
 export function getSettings(): Settings {
   if (!cache) {
     try {
-      cache = { ...defaults, ...JSON.parse(readFileSync(file(), 'utf8')) }
+      const c: Settings = { ...defaults, ...JSON.parse(readFileSync(file(), 'utf8')) }
+      cache = c.schema < 2 ? { ...c, suspendMinutes: 3, schema: 2 } : c // novo padrão: 3 min
     } catch {
       cache = { ...defaults }
     }

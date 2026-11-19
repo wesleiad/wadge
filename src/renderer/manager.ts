@@ -19,6 +19,7 @@ const text = ['homepage', 'searchEngine', 'vaultUrl'] as const
 void api.getSettings().then((s: Settings) => {
   text.forEach((k) => ($<HTMLInputElement>('#' + k).value = s[k]))
   $<HTMLInputElement>('#suspendMinutes').value = String(s.suspendMinutes)
+  $<HTMLInputElement>('#memLimitMB').value = String(s.memLimitMB)
   $<HTMLInputElement>('#adblockEnabled').checked = s.adblockEnabled
   $<HTMLTextAreaElement>('#adblockPausedSites').value = s.adblockPausedSites.join('\n')
 })
@@ -28,6 +29,7 @@ $('#saveSettings').onclick = async () => {
     searchEngine: $<HTMLInputElement>('#searchEngine').value.trim() || 'https://www.google.com/search?q=%s',
     vaultUrl: $<HTMLInputElement>('#vaultUrl').value.trim(),
     suspendMinutes: Math.max(1, Number($<HTMLInputElement>('#suspendMinutes').value) || 5),
+    memLimitMB: Math.max(400, Number($<HTMLInputElement>('#memLimitMB').value) || 1200),
     adblockEnabled: $<HTMLInputElement>('#adblockEnabled').checked,
     adblockPausedSites: $<HTMLTextAreaElement>('#adblockPausedSites').value
       .split('\n').map((s) => s.trim().toLowerCase()).filter(Boolean)

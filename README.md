@@ -1,4 +1,4 @@
-# WADGE
+# WD - Navegador
 
 Navegador desktop leve para Windows 10/11 (Electron + TypeScript + Vite). Sem login: abre direto para uso.
 
@@ -19,7 +19,7 @@ npm run typecheck
 
 ## Gerar o instalador (.exe)
 ```bash
-npm run dist         # saída: release/WADGE-Setup-<versão>.exe
+npm run dist         # saída: release/WD-Navegador-Setup-<versão>.exe
 ```
 O ícone fica em `build/icon.ico` e `build/icon.png`.
 
